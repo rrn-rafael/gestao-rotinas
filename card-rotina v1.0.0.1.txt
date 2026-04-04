@@ -1,0 +1,499 @@
+import { motion } from "framer-motion"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+
+const COLUMN_WIDTH = 232
+const COLUMN_GAP = 40
+const CARD_WIDTH = 208
+const CARD_HEIGHT = 104
+const CARD_GAP = 16
+const MAP_PADDING = 40
+
+const items = [
+  { tool: "SAS", icon: "table", name: "NASA", owner: "Fátima Lavouras", ownerPresence: "online", status: "Concluído", detail: "insumo inicial disponível", completedAt: "06:32", color: "green" },
+  { tool: "SAS", icon: "table", name: "GSIN", owner: "Fátima Lavouras", ownerPresence: "ausente", status: "Em atraso", detail: "origem SAS acima do previsto", forecast: "06:55", variance: "+18m", varianceTone: "negative", color: "amber" },
+  { tool: "SAS", icon: "table", name: "Crivo", owner: "Fátima Lavouras", ownerPresence: "online", status: "Concluído", detail: "regras de elegibilidade prontas", completedAt: "06:28", color: "green" },
+  { tool: "SAS", icon: "table", name: "Cotação Variáveis", owner: "Fátima Lavouras", ownerPresence: "online", status: "Concluído", detail: "parâmetros liberados", completedAt: "06:31", color: "green" },
+  { tool: "ORCL", icon: "table", name: "DWAT", owner: "Sistema automático", ownerPresence: "online", status: "Concluído", detail: "carga automática concluída", completedAt: "06:20", color: "green" },
+  { tool: "ORCL", icon: "table", name: "DWRE", owner: "Sistema automático", ownerPresence: "online", status: "Concluído", detail: "carga automática concluída", completedAt: "06:22", color: "green" },
+  { tool: "ORCL", icon: "table", name: "EDW", owner: "Sistema automático", ownerPresence: "online", status: "Concluído", detail: "carga automática concluída", completedAt: "06:24", color: "green" },
+  { tool: "SAS", icon: "table", name: "CBO", owner: "Fátima Lavouras", ownerPresence: "online", status: "Concluído", detail: "base preparada", completedAt: "06:35", color: "green" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_EMISSAO", owner: "Isaque Pimentel", ownerPresence: "online", status: "Executando", detail: "dependência: NASA", forecast: "07:10", variance: "+4m", varianceTone: "negative", color: "amber" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_RECOMPENSA", owner: "Rafael Rocha", ownerPresence: "online", status: "Concluído", detail: "dependência: DWAT", completedAt: "06:54", color: "green" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_PROPOSTAS_DIARIAS", owner: "Tuany", ownerPresence: "online", status: "Aguardando", detail: "dependência: FT_AUTO_EMISSAO", forecast: "07:35", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_PROPOSTAS_MENSAIS", owner: "Tuany", ownerPresence: "online", status: "Aguardando", detail: "dependência: FT_AUTO_EMISSAO", forecast: "07:42", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_PROPOSTAS_PENDENTES", owner: "Rafael Rocha", ownerPresence: "online", status: "Aguardando", detail: "dep.: diárias e mensais", forecast: "08:05", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_A_RENOVAR", owner: "Tuany", ownerPresence: "offline", status: "Aguardando", detail: "dependência: FT_AUTO_EMISSAO", forecast: "07:48", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_RENOVADOS", owner: "Tuany", ownerPresence: "offline", status: "Aguardando", detail: "dep.: emissão e pendentes", forecast: "08:18", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_SINISTROS_AVISADOS", owner: "Rafael Rocha", ownerPresence: "online", status: "Aguardando", detail: "dependência: GSIN", forecast: "07:28", variance: "+18m", varianceTone: "negative", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_SINISTROS_PAGOS", owner: "Rafael Rocha", ownerPresence: "online", status: "Aguardando", detail: "dependência: GSIN", forecast: "07:36", variance: "+18m", varianceTone: "negative", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_COTACAO", owner: "Tuany", ownerPresence: "online", status: "Aguardando", detail: "dep.: emissão, crivo e variáveis", forecast: "07:52", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_COTACAO_D30", owner: "Tuany", ownerPresence: "online", status: "Aguardando", detail: "dep.: emissão, crivo e variáveis", forecast: "07:58", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_AUTO_CBO", owner: "Fátima Lavouras", ownerPresence: "online", status: "Aguardando", detail: "dep.: emissão e CBO", forecast: "07:46", color: "gray" },
+  { tool: "SQL", icon: "table", name: "FT_PROD_AGREG_AUTORE_DIARIO", owner: "Rafael Rocha", ownerPresence: "online", status: "Concluído", detail: "dep.: DWAT, DWRE e EDW", completedAt: "06:58", color: "green" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Emissão Auto", owner: "Isaque Pimentel", ownerPresence: "online", status: "Aguardando", detail: "dependência: FT_AUTO_EMISSAO", forecast: "08:10", color: "gray" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Recompensa", owner: "Isaque Pimentel", ownerPresence: "online", status: "Aguardando", detail: "dependência: FT_AUTO_RECOMPENSA", forecast: "07:20", variance: "-4m", varianceTone: "positive", color: "gray" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Propostas Pendentes", owner: "Isaque Pimentel", ownerPresence: "online", status: "Aguardando", detail: "dep.: diárias e mensais", forecast: "08:18", color: "gray" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Cotação Auto Individual", owner: "Isaque Pimentel", ownerPresence: "online", status: "Aguardando", detail: "dep.: cotação e D30", forecast: "08:22", color: "gray" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Sinistros Avisados", owner: "Isaque Pimentel", ownerPresence: "online", status: "Aguardando", detail: "dep.: sinistros avisados", forecast: "07:45", variance: "+18m", varianceTone: "negative", color: "gray" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Sinistros Pagos", owner: "Isaque Pimentel", ownerPresence: "online", status: "Aguardando", detail: "dep.: sinistros pagos", forecast: "07:52", variance: "+18m", varianceTone: "negative", color: "gray" },
+  { tool: "MSTR", icon: "cube", name: "Cubo Produção Auto/RE", owner: "Isaque Pimentel", ownerPresence: "online", status: "Concluído", detail: "dep.: FT_PROD_AGREG_AUTORE_DIARIO", completedAt: "07:09", color: "green" },
+]
+
+const dependencies = [
+  ["NASA", "FT_AUTO_EMISSAO"],
+  ["DWAT", "FT_AUTO_RECOMPENSA"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_PROPOSTAS_DIARIAS"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_PROPOSTAS_MENSAIS"],
+  ["FT_AUTO_PROPOSTAS_DIARIAS", "FT_AUTO_PROPOSTAS_PENDENTES"],
+  ["FT_AUTO_PROPOSTAS_MENSAIS", "FT_AUTO_PROPOSTAS_PENDENTES"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_A_RENOVAR"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_RENOVADOS"],
+  ["FT_AUTO_PROPOSTAS_PENDENTES", "FT_AUTO_RENOVADOS"],
+  ["GSIN", "FT_AUTO_SINISTROS_AVISADOS"],
+  ["GSIN", "FT_AUTO_SINISTROS_PAGOS"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_COTACAO"],
+  ["Crivo", "FT_AUTO_COTACAO"],
+  ["Cotação Variáveis", "FT_AUTO_COTACAO"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_COTACAO_D30"],
+  ["Crivo", "FT_AUTO_COTACAO_D30"],
+  ["Cotação Variáveis", "FT_AUTO_COTACAO_D30"],
+  ["FT_AUTO_EMISSAO", "FT_AUTO_CBO"],
+  ["CBO", "FT_AUTO_CBO"],
+  ["DWAT", "FT_PROD_AGREG_AUTORE_DIARIO"],
+  ["DWRE", "FT_PROD_AGREG_AUTORE_DIARIO"],
+  ["EDW", "FT_PROD_AGREG_AUTORE_DIARIO"],
+  ["FT_AUTO_EMISSAO", "Cubo Emissão Auto"],
+  ["FT_AUTO_RECOMPENSA", "Cubo Recompensa"],
+  ["FT_AUTO_PROPOSTAS_DIARIAS", "Cubo Propostas Pendentes"],
+  ["FT_AUTO_PROPOSTAS_MENSAIS", "Cubo Propostas Pendentes"],
+  ["FT_AUTO_COTACAO", "Cubo Cotação Auto Individual"],
+  ["FT_AUTO_COTACAO_D30", "Cubo Cotação Auto Individual"],
+  ["FT_AUTO_SINISTROS_AVISADOS", "Cubo Sinistros Avisados"],
+  ["FT_AUTO_SINISTROS_PAGOS", "Cubo Sinistros Pagos"],
+  ["FT_PROD_AGREG_AUTORE_DIARIO", "Cubo Produção Auto/RE"],
+]
+
+function getStatusStyles(color) {
+  const styles = {
+    green: { accent: "bg-emerald-500" },
+    amber: { accent: "bg-amber-500" },
+    gray: { accent: "bg-neutral-400" },
+  }
+  return styles[color] || styles.gray
+}
+
+function getPresenceDot(presence) {
+  const dots = {
+    online: "bg-emerald-500",
+    ausente: "bg-amber-500",
+    offline: "bg-neutral-400",
+  }
+  return dots[presence] || dots.offline
+}
+
+function getVarianceStyles(tone) {
+  const tones = {
+    positive: "text-emerald-600",
+    negative: "text-amber-600",
+  }
+  return tones[tone] || "text-neutral-400"
+}
+
+function HeaderIcon({ type }) {
+  if (type === "cube") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0 text-neutral-400" aria-hidden="true">
+        <path d="M8 2.2 12.5 4.7V11.3L8 13.8 3.5 11.3V4.7L8 2.2Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+        <path d="M8 2.2V8M12.5 4.7 8 8 3.5 4.7" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0 text-neutral-400" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1" />
+      <path d="M2.5 6H13.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+      <path d="M6 2.5V13.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+      <path d="M10 2.5V13.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function Card({ item, hasSelection, isRelated, isSelected, onSelect, registerCardRef }) {
+  const isSecondary = item.status === "Concluído" || item.status === "Aguardando"
+  const { accent } = getStatusStyles(item.color)
+  const presenceDot = getPresenceDot(item.ownerPresence)
+  const varianceClass = getVarianceStyles(item.varianceTone)
+  const contentOpacityClass = hasSelection ? (isRelated ? "opacity-100" : "opacity-45") : isSecondary ? "opacity-45" : "opacity-100"
+
+  return (
+    <motion.div
+      ref={registerCardRef(item.name)}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(item.name)
+      }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0, scale: isSelected ? 1.02 : 1 }}
+      whileHover={{ y: -2 }}
+      className={`group relative z-10 h-[104px] w-[208px] rounded-[16px] bg-white px-3 py-2 shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition-all ${isSelected ? "ring-2 ring-amber-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)]" : ""}`}
+    >
+      <div className={`flex h-full flex-col gap-1.5 ${contentOpacityClass}`}>
+        <div className="flex items-center gap-2">
+          <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">{item.tool}</div>
+          <div className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] font-semibold tracking-[-0.01em] text-neutral-950">{item.name}</div>
+          <HeaderIcon type={item.icon} />
+        </div>
+
+        <div className="mt-0.5 flex items-center justify-between gap-2">
+          <div className={`mt-0.5 h-8 w-1.5 shrink-0 rounded-full ${accent}`} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14px] font-semibold leading-none text-neutral-950">{item.status}</div>
+            <div className="mt-0.5 truncate text-[10px] leading-none text-neutral-500">{item.detail}</div>
+          </div>
+        </div>
+
+        <div className="mt-0.5 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden">
+            <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${presenceDot}`} />
+            <div className="truncate text-[10px] font-medium text-neutral-700">{item.owner}</div>
+          </div>
+
+          <div className="shrink-0 flex items-center gap-1 text-[10px]">
+            <span className="text-neutral-400">{item.status === "Concluído" ? "Conclusão" : "EST"}</span>
+            <span className="font-semibold text-neutral-900">{item.status === "Concluído" ? item.completedAt : item.forecast}</span>
+            {item.status !== "Concluído" && item.variance ? <span className={`font-semibold ${varianceClass}`}>{item.variance}</span> : null}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function computeColumns() {
+  const incoming = Object.fromEntries(items.map((item) => [item.name, 0]))
+  const outgoing = Object.fromEntries(items.map((item) => [item.name, []]))
+  const parents = Object.fromEntries(items.map((item) => [item.name, []]))
+  const originalIndex = Object.fromEntries(items.map((item, index) => [item.name, index]))
+
+  dependencies.forEach(([from, to]) => {
+    if (outgoing[from]) outgoing[from].push(to)
+    if (parents[to]) parents[to].push(from)
+    if (incoming[to] !== undefined) incoming[to] += 1
+  })
+
+  const queue = Object.keys(incoming).filter((name) => incoming[name] === 0)
+  const levelMap = Object.fromEntries(items.map((item) => [item.name, 0]))
+
+  while (queue.length) {
+    const current = queue.shift()
+    ;(outgoing[current] || []).forEach((next) => {
+      levelMap[next] = Math.max(levelMap[next], levelMap[current] + 1)
+      incoming[next] -= 1
+      if (incoming[next] === 0) queue.push(next)
+    })
+  }
+
+  const grouped = {}
+  items.forEach((item) => {
+    const level = levelMap[item.name] || 0
+    if (!grouped[level]) grouped[level] = []
+    grouped[level].push(item)
+  })
+
+  return Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((level) => {
+      const columnItems = [...grouped[level]].sort((a, b) => {
+        const aParents = parents[a.name] || []
+        const bParents = parents[b.name] || []
+
+        const aAvg = aParents.length
+          ? aParents.reduce((sum, parent) => sum + (originalIndex[parent] ?? 0), 0) / aParents.length
+          : originalIndex[a.name]
+
+        const bAvg = bParents.length
+          ? bParents.reduce((sum, parent) => sum + (originalIndex[parent] ?? 0), 0) / bParents.length
+          : originalIndex[b.name]
+
+        if (aAvg !== bAvg) return aAvg - bAvg
+        return originalIndex[a.name] - originalIndex[b.name]
+      })
+
+      return { level, items: columnItems }
+    })
+}
+
+function getRelativeRect(element, ancestor) {
+  let x = 0
+  let y = 0
+  let current = element
+
+  while (current && current !== ancestor) {
+    x += current.offsetLeft
+    y += current.offsetTop
+    current = current.offsetParent
+  }
+
+  return {
+    left: x,
+    top: y,
+    right: x + element.offsetWidth,
+    bottom: y + element.offsetHeight,
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    cy: y + element.offsetHeight / 2,
+  }
+}
+
+function DependencyLayer({ cardPositions, mapSize, highlightedEdges, hasSelection }) {
+  return (
+    <svg className="pointer-events-none absolute left-0 top-0 z-0" width={mapSize.width} height={mapSize.height}>
+      {dependencies.map(([from, to]) => {
+        const start = cardPositions[from]
+        const end = cardPositions[to]
+        if (!start || !end) return null
+
+        const distance = Math.max(24, end.left - start.right)
+        const bend = Math.min(40, Math.max(18, distance * 0.35))
+        const edgeKey = `${from}->${to}`
+        const isHighlighted = highlightedEdges.has(edgeKey)
+        const path = `M ${start.right} ${start.cy} C ${start.right + bend} ${start.cy}, ${end.left - bend} ${end.cy}, ${end.left} ${end.cy}`
+        const stroke = isHighlighted ? "#FDE68A" : "#D1D5DB"
+        const opacity = hasSelection ? (isHighlighted ? 1 : 0.18) : 1
+        const width = isHighlighted ? 2 : 1.5
+
+        return <path key={edgeKey} d={path} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" opacity={opacity} />
+      })}
+    </svg>
+  )
+}
+
+function Column({ column, selectedName, relatedNodes, onSelect, registerCardRef }) {
+  return (
+    <div className="relative w-[232px] shrink-0 pt-3">
+      <div className="flex flex-col gap-4">
+        {column.items.map((item) => {
+          const hasSelection = !!selectedName
+          const isSelected = selectedName === item.name
+          const isRelated = hasSelection ? relatedNodes.has(item.name) : false
+
+          return (
+            <Card
+              key={item.name}
+              item={item}
+              hasSelection={hasSelection}
+              isRelated={isRelated}
+              isSelected={isSelected}
+              onSelect={onSelect}
+              registerCardRef={registerCardRef}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export default function WireframeMapaRotinas() {
+  const columns = useMemo(() => computeColumns(), [])
+  const [selectedName, setSelectedName] = useState(null)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 80, y: 40 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [spacePressed, setSpacePressed] = useState(false)
+  const [cardPositions, setCardPositions] = useState({})
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 })
+  const panStartRef = useRef({ x: 0, y: 0 })
+  const mapRef = useRef(null)
+  const cardRefs = useRef({})
+
+  const { relatedNodes, highlightedEdges } = useMemo(() => {
+    if (!selectedName) {
+      return { relatedNodes: new Set(), highlightedEdges: new Set() }
+    }
+
+    const forward = new Map()
+    const backward = new Map()
+
+    dependencies.forEach(([from, to]) => {
+      if (!forward.has(from)) forward.set(from, [])
+      if (!backward.has(to)) backward.set(to, [])
+      forward.get(from).push(to)
+      backward.get(to).push(from)
+    })
+
+    const nodes = new Set([selectedName])
+    const edges = new Set()
+
+    const visit = (start, graph, direction) => {
+      const queue = [start]
+      const seen = new Set([start])
+
+      while (queue.length) {
+        const current = queue.shift()
+        const nextNodes = graph.get(current) || []
+
+        nextNodes.forEach((next) => {
+          const from = direction === "forward" ? current : next
+          const to = direction === "forward" ? next : current
+          edges.add(`${from}->${to}`)
+          nodes.add(next)
+          if (!seen.has(next)) {
+            seen.add(next)
+            queue.push(next)
+          }
+        })
+      }
+    }
+
+    visit(selectedName, forward, "forward")
+    visit(selectedName, backward, "backward")
+
+    return { relatedNodes: nodes, highlightedEdges: edges }
+  }, [selectedName])
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === "Space") {
+        e.preventDefault()
+        setSpacePressed(true)
+      }
+    }
+
+    const handleKeyUp = (e) => {
+      if (e.code === "Space") {
+        setSpacePressed(false)
+        setIsPanning(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const mapNode = mapRef.current
+      if (!mapNode) return
+
+      const nextPositions = {}
+      Object.entries(cardRefs.current).forEach(([name, node]) => {
+        if (!node) return
+        nextPositions[name] = getRelativeRect(node, mapNode)
+      })
+
+      setCardPositions(nextPositions)
+      setMapSize({
+        width: mapNode.scrollWidth || columns.length * COLUMN_WIDTH + Math.max(0, columns.length - 1) * COLUMN_GAP + MAP_PADDING * 2,
+        height: mapNode.scrollHeight || CARD_HEIGHT,
+      })
+    }
+
+    measure()
+
+    const resizeObserver = new ResizeObserver(() => {
+      measure()
+    })
+
+    if (mapRef.current) resizeObserver.observe(mapRef.current)
+    Object.values(cardRefs.current).forEach((node) => {
+      if (node) resizeObserver.observe(node)
+    })
+
+    window.addEventListener("resize", measure)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener("resize", measure)
+    }
+  }, [columns, selectedName])
+
+  const registerCardRef = (name) => (node) => {
+    if (node) {
+      cardRefs.current[name] = node
+    } else {
+      delete cardRefs.current[name]
+    }
+  }
+
+  const handleSelect = (name) => {
+    if (spacePressed) return
+    setSelectedName((current) => (current === name ? null : name))
+  }
+
+  const handleClearSelection = () => {
+    if (!spacePressed) setSelectedName(null)
+  }
+
+  const handleMouseDown = (e) => {
+    if (!spacePressed) return
+    setIsPanning(true)
+    panStartRef.current = {
+      x: e.clientX - pan.x,
+      y: e.clientY - pan.y,
+    }
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isPanning) return
+    setPan({
+      x: e.clientX - panStartRef.current.x,
+      y: e.clientY - panStartRef.current.y,
+    })
+  }
+
+  const handleMouseUp = () => {
+    setIsPanning(false)
+  }
+
+  const adjustZoom = (delta) => {
+    setZoom((current) => Math.min(1.8, Math.max(0.5, +(current + delta).toFixed(2))))
+  }
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#F8FAFC]" onClick={handleClearSelection}>
+      <div className="absolute right-6 top-6 z-30 flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white/90 p-1 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+        <button onClick={(e) => { e.stopPropagation(); adjustZoom(-0.1) }} className="flex h-9 w-9 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-neutral-100">−</button>
+        <div className="min-w-[56px] text-center text-[11px] font-semibold text-neutral-500">{Math.round(zoom * 100)}%</div>
+        <button onClick={(e) => { e.stopPropagation(); adjustZoom(0.1) }} className="flex h-9 w-9 items-center justify-center rounded-xl text-neutral-600 transition hover:bg-neutral-100">+</button>
+      </div>
+
+      <div
+        className={`h-screen w-full select-none overflow-hidden ${spacePressed ? "cursor-grab" : "cursor-default"} ${isPanning ? "cursor-grabbing" : ""}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        <div
+          className="origin-top-left transition-transform duration-75"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            width: "max-content",
+          }}
+        >
+          <div ref={mapRef} className="relative flex items-start gap-10 p-10">
+            <DependencyLayer cardPositions={cardPositions} mapSize={mapSize} highlightedEdges={highlightedEdges} hasSelection={!!selectedName} />
+            {columns.map((column) => (
+              <Column
+                key={column.level}
+                column={column}
+                selectedName={selectedName}
+                relatedNodes={relatedNodes}
+                onSelect={handleSelect}
+                registerCardRef={registerCardRef}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
