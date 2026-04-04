@@ -1,24 +1,23 @@
-import { isRunningStatus } from "./presentation";
 import type {
   CardIcon,
+  CardStatus,
   RoutineCard,
   RoutineFilters,
   RoutineKind,
 } from "./types";
 
 export const DEFAULT_ROUTINE_FILTERS: RoutineFilters = {
-  owner: "",
-  tool: "",
-  kind: "",
-  status: "",
-  onlyExecuting: false,
+  owners: [],
+  tools: [],
+  kinds: [],
+  statuses: [],
 };
 
 export type RoutineFilterOptions = {
   owners: string[];
   tools: string[];
   kinds: RoutineKind[];
-  statuses: string[];
+  statuses: CardStatus[];
 };
 
 export function getRoutineKind(icon: CardIcon): RoutineKind {
@@ -39,7 +38,7 @@ export function buildRoutineFilterOptions(
   const owners = new Set<string>();
   const tools = new Set<string>();
   const kinds = new Set<RoutineKind>();
-  const statuses = new Set<string>();
+  const statuses = new Set<CardStatus>();
 
   cards.forEach((card) => {
     owners.add(card.owner);
@@ -56,14 +55,17 @@ export function buildRoutineFilterOptions(
   };
 }
 
-export function hasActiveFilters(filters: RoutineFilters) {
-  return Boolean(
-    filters.owner ||
-      filters.tool ||
-      filters.kind ||
-      filters.status ||
-      filters.onlyExecuting,
+export function getActiveRoutineFilterCount(filters: RoutineFilters) {
+  return (
+    filters.owners.length +
+    filters.tools.length +
+    filters.kinds.length +
+    filters.statuses.length
   );
+}
+
+export function hasActiveFilters(filters: RoutineFilters) {
+  return getActiveRoutineFilterCount(filters) > 0;
 }
 
 export function filterRoutineCards(
@@ -71,23 +73,22 @@ export function filterRoutineCards(
   filters: RoutineFilters,
 ) {
   return cards.filter((card) => {
-    if (filters.onlyExecuting && !isRunningStatus(card.status)) {
+    if (filters.owners.length > 0 && !filters.owners.includes(card.owner)) {
       return false;
     }
 
-    if (filters.owner && card.owner !== filters.owner) {
+    if (filters.tools.length > 0 && !filters.tools.includes(card.tool)) {
       return false;
     }
 
-    if (filters.tool && card.tool !== filters.tool) {
+    if (
+      filters.kinds.length > 0 &&
+      !filters.kinds.includes(getRoutineKind(card.icon))
+    ) {
       return false;
     }
 
-    if (filters.kind && getRoutineKind(card.icon) !== filters.kind) {
-      return false;
-    }
-
-    if (filters.status && card.status !== filters.status) {
+    if (filters.statuses.length > 0 && !filters.statuses.includes(card.status)) {
       return false;
     }
 

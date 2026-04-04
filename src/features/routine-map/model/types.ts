@@ -68,9 +68,8 @@ export type RoutineMapLayout = {
 };
 
 export type RoutineFilters = {
-  owner: string;
-  tool: string;
-  kind: RoutineKind | "";
-  status: CardStatus | "";
-  onlyExecuting: boolean;
+  owners: string[];
+  tools: string[];
+  kinds: RoutineKind[];
+  statuses: CardStatus[];
 };

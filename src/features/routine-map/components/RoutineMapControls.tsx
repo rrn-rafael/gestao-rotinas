@@ -1,49 +1,85 @@
+import type { ReactNode } from "react";
+
 type RoutineMapControlsProps = {
-  scale: number;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onReset: () => void;
 };
 
+function MapControlButton({
+  label,
+  onClick,
+  children,
+  bordered = true,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+  bordered?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-10 w-10 items-center justify-center bg-white text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 ${
+        bordered ? "border-b border-slate-200" : ""
+      }`}
+      aria-label={label}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function RoutineMapControls({
-  scale,
   onZoomOut,
   onZoomIn,
   onReset,
 }: RoutineMapControlsProps) {
   return (
     <div
-      className="absolute right-6 top-6 z-30 flex items-center gap-2 rounded-[20px] border border-white/70 bg-white/78 p-2 shadow-[0_20px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+      className="absolute bottom-5 right-5 z-30 overflow-hidden rounded-[18px] border border-slate-300 bg-white"
       onClick={(event) => {
         event.stopPropagation();
       }}
     >
-      <button
-        type="button"
-        onClick={onZoomOut}
-        className="flex h-10 w-10 items-center justify-center rounded-2xl border border-neutral-200 bg-white text-lg font-medium text-neutral-700 transition hover:border-neutral-300 hover:text-neutral-950"
-        aria-label="Diminuir zoom"
-      >
-        -
-      </button>
-      <div className="min-w-[70px] text-center text-[12px] font-semibold text-neutral-500">
-        {Math.round(scale * 100)}%
+      <div className="flex flex-col">
+        <MapControlButton label="Aumentar zoom" onClick={onZoomIn}>
+          <span className="text-[20px] leading-none">+</span>
+        </MapControlButton>
+
+        <MapControlButton label="Diminuir zoom" onClick={onZoomOut}>
+          <span className="text-[20px] leading-none">-</span>
+        </MapControlButton>
+
+        <MapControlButton
+          label="Resetar visualizacao"
+          onClick={onReset}
+          bordered={false}
+        >
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4"
+            aria-hidden="true"
+          >
+            <path
+              d="M8 2.5V5.5M8 10.5V13.5M2.5 8H5.5M10.5 8H13.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <circle
+              cx="8"
+              cy="8"
+              r="2.25"
+              stroke="currentColor"
+              strokeWidth="1.4"
+            />
+          </svg>
+        </MapControlButton>
       </div>
-      <button
-        type="button"
-        onClick={onZoomIn}
-        className="flex h-10 w-10 items-center justify-center rounded-2xl border border-neutral-200 bg-white text-lg font-medium text-neutral-700 transition hover:border-neutral-300 hover:text-neutral-950"
-        aria-label="Aumentar zoom"
-      >
-        +
-      </button>
-      <button
-        type="button"
-        onClick={onReset}
-        className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 transition hover:border-neutral-300 hover:text-neutral-900"
-      >
-        Reset
-      </button>
     </div>
   );
 }
