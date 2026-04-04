@@ -28,31 +28,24 @@ This project uses approval-based version governance.
 ## Recommended Git Strategy
 Use this when the repository is under Git.
 
-- `main` or `approved` branch:
+- `main` branch:
   contains only the latest approved baseline
-- `codex/<change-name>` branch:
-  contains the current candidate change
+- `codex/teste` branch:
+  contains the current candidate under validation
 - optional tag:
   `approved/vX.Y.Z` for every approved baseline
 
 Recommended promotion logic:
-1. Create a candidate branch from the approved baseline.
+1. Create or reset `codex/teste` from the approved baseline.
 2. Implement and validate the change.
 3. Request testing.
-4. If approved, merge or fast-forward the approved branch and optionally create a tag.
-5. If rejected, abandon the candidate branch and restart from the approved baseline.
-
-## Current Limitation
-This workspace is not currently initialized as a Git repository.
-
-That means:
-- rollback is manual instead of guaranteed
-- approved baselines are procedural instead of system-enforced
-- parallel candidates are riskier than they should be
+4. If approved, merge or fast-forward `main`, optionally create a tag, and delete `codex/teste`.
+5. If rejected, delete `codex/teste` and return to `main`.
 
 ## Practical Rule For This Repository
-Until Git is enabled:
-- keep diffs small
+- keep only one test branch at a time: `codex/teste`
+- do not create multiple concurrent candidate branches
 - do not treat a change as approved unless the user explicitly says it is approved
 - after each implementation, stop at "awaiting test"
-- only continue building on top of a version after explicit approval
+- if rejected, delete `codex/teste`
+- if approved, promote to `main` and then delete `codex/teste`
