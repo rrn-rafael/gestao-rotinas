@@ -292,16 +292,13 @@ export default function RoutineMap() {
                 style={{ width: layout.width, height: layout.height }}
               >
                 {layout.cards.map((item) => {
-                  const isMenuCard = activeActionMenuCardId === item.id;
                   const relation = hasActiveActionMenu
-                    ? isMenuCard
-                      ? "selected"
-                      : "idle"
+                    ? "idle"
                     : getCardRelation(item.id, presentedSelectedId, focusSets);
                   const opacity = getCardOpacity(
                     item.status,
                     relation,
-                    hasActiveActionMenu ? isMenuCard : presentedSelectedId !== null,
+                    presentedSelectedId !== null,
                   );
 
                   return (
@@ -314,7 +311,6 @@ export default function RoutineMap() {
                       menuBoundaryRef={viewportRef}
                       activeActionMenuCardId={activeActionMenuCardId}
                       onSetActiveActionMenuCardId={setActiveActionMenuCardId}
-                      forceHighlighted={isMenuCard}
                       buttonRef={(node) => {
                         cardRefs.current[item.id] = node;
                       }}

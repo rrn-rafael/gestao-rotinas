@@ -42,19 +42,16 @@ export function RoutineCardGrid({
   }
 
   return (
-    <div className="relative grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+      <div className="relative grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         {cards.map((card) => {
           const hasActiveActionMenu = activeActionMenuCardId !== null;
-          const isMenuCard = activeActionMenuCardId === card.id;
           const relation = hasActiveActionMenu
-            ? isMenuCard
-              ? "selected"
-              : "idle"
+            ? "idle"
             : getCardRelation(card.id, selectedId, focusSets);
           const opacity = getCardOpacity(
             card.status,
             relation,
-            hasActiveActionMenu ? isMenuCard : selectedId !== null,
+            selectedId !== null,
           );
 
           return (
@@ -68,7 +65,6 @@ export function RoutineCardGrid({
               menuBoundaryRef={boundaryRef}
               activeActionMenuCardId={activeActionMenuCardId}
               onSetActiveActionMenuCardId={onSetActiveActionMenuCardId}
-              forceHighlighted={isMenuCard}
               onToggleSelect={onToggleSelect}
             />
           );

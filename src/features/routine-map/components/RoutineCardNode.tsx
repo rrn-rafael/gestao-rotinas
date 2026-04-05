@@ -23,7 +23,6 @@ type RoutineCardNodeProps = {
   buttonRef?: (node: HTMLButtonElement | null) => void;
   layoutMode?: "canvas" | "grid";
   menuBoundaryRef: RefObject<HTMLElement | null>;
-  forceHighlighted?: boolean;
   onToggleSelect: (cardId: string) => void;
 };
 
@@ -505,7 +504,6 @@ export function RoutineCardNode({
   buttonRef,
   layoutMode = "canvas",
   menuBoundaryRef,
-  forceHighlighted = false,
   onToggleSelect,
 }: RoutineCardNodeProps) {
   const [hovered, setHovered] = useState(false);
@@ -515,8 +513,11 @@ export function RoutineCardNode({
   const [floatingCardPosition, setFloatingCardPosition] =
     useState<FloatingCardPosition | null>(null);
   const menuOpen = activeActionMenuCardId === item.id;
-  const isSelected = forceHighlighted || relation === "selected";
-  const isRelated = !isSelected && (relation === "upstream" || relation === "downstream");
+  const isBranchSelected = relation === "selected";
+  const isRelated =
+    !isBranchSelected &&
+    !menuOpen &&
+    (relation === "upstream" || relation === "downstream");
   const isRunning = isRunningStatus(item.status);
   const isCompleted = item.completedAt !== undefined;
   const runnerColor = getStatusRunnerColor(item.status);
@@ -524,18 +525,24 @@ export function RoutineCardNode({
   const elevated = hovered || menuOpen;
   const showActionButton = !interactionLocked && (hovered || menuOpen);
   const contentOpacity = opacity;
-  const outerShadow = isSelected
+  const outerShadow = isBranchSelected
     ? "0 16px 34px rgba(15,23,42,0.12)"
+    : menuOpen
+      ? "0 18px 36px rgba(15,23,42,0.14)"
     : elevated
       ? "0 14px 30px rgba(15,23,42,0.08)"
       : "0 10px 24px rgba(15,23,42,0.05)";
-  const insetHighlight = isSelected
+  const insetHighlight = isBranchSelected
     ? "inset 0 0 0 2px rgba(253,230,138,0.95)"
+    : menuOpen
+      ? "inset 0 0 0 1px rgba(226,232,240,0.96)"
     : isRelated
       ? "inset 0 0 0 1px rgba(254,243,199,0.95)"
       : "inset 0 0 0 1px rgba(255,255,255,0.72)";
-  const borderColor = isSelected
+  const borderColor = isBranchSelected
     ? "rgba(253, 230, 138, 0.95)"
+    : menuOpen
+      ? "rgba(226, 232, 240, 0.96)"
     : hovered
       ? "rgba(229, 231, 235, 0.95)"
       : "rgba(255, 255, 255, 0.72)";
@@ -683,7 +690,7 @@ export function RoutineCardNode({
         ref={cardVisualRef}
         className="relative h-full w-full transition-all duration-200"
         style={{
-          transform: isSelected
+          transform: isBranchSelected
             ? "translateY(-1px) scale(1.02)"
             : elevated
               ? "translateY(-2px)"
