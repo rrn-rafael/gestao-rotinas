@@ -186,6 +186,21 @@ export function RoutineCardNode({
   const showActionButton = !interactionLocked && (hovered || menuOpen);
   const menuContextActive = activeActionMenuCardId !== null;
   const contentOpacity = menuContextActive && !menuOpen ? Math.min(opacity, 0.68) : opacity;
+  const outerShadow = isSelected
+    ? "0 16px 34px rgba(15,23,42,0.12)"
+    : elevated
+      ? "0 14px 30px rgba(15,23,42,0.08)"
+      : "0 10px 24px rgba(15,23,42,0.05)";
+  const insetHighlight = isSelected
+    ? "inset 0 0 0 2px rgba(253,230,138,0.95)"
+    : isRelated
+      ? "inset 0 0 0 1px rgba(254,243,199,0.95)"
+      : "inset 0 0 0 1px rgba(255,255,255,0.72)";
+  const borderColor = isSelected
+    ? "rgba(253, 230, 138, 0.95)"
+    : hovered
+      ? "rgba(229, 231, 235, 0.95)"
+      : "rgba(255, 255, 255, 0.72)";
 
   const actionItems: CardActionItem[] = [
     {
@@ -270,11 +285,6 @@ export function RoutineCardNode({
       <div
         className="relative h-full w-full transition-all duration-200"
         style={{
-          boxShadow: isSelected
-            ? "0 16px 34px rgba(15,23,42,0.12)"
-            : elevated
-              ? "0 14px 30px rgba(15,23,42,0.08)"
-              : "0 10px 24px rgba(15,23,42,0.05)",
           transform: isSelected
             ? "translateY(-1px) scale(1.02)"
             : elevated
@@ -282,36 +292,13 @@ export function RoutineCardNode({
               : "translateY(0px)",
         }}
       >
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-
-            if (interactionLocked) {
-              return;
-            }
-
-            onToggleSelect(item.id);
+        <div
+          className="relative isolate h-full w-full overflow-hidden rounded-[16px] bg-white transition-all duration-200"
+          style={{
+            border: `1px solid ${borderColor}`,
+            boxShadow: `${outerShadow}, ${insetHighlight}`,
           }}
-          className="h-full w-full overflow-hidden rounded-[16px] bg-white px-3 py-2 text-left transition-all duration-200"
         >
-          <div
-            className="pointer-events-none absolute inset-0 rounded-[16px] border bg-white transition-all duration-200"
-            style={{
-              borderColor: isSelected
-                ? "rgba(253, 230, 138, 0.95)"
-                : hovered
-                  ? "rgba(229, 231, 235, 0.95)"
-                  : "rgba(255, 255, 255, 0.72)",
-              boxShadow: isSelected
-                ? "inset 0 0 0 2px rgba(253,230,138,0.95)"
-                : isRelated
-                  ? "inset 0 0 0 1px rgba(254,243,199,0.95)"
-                  : "inset 0 0 0 1px rgba(255,255,255,0.72)",
-            }}
-          />
-
           {isRunning ? (
             <svg
               className="pointer-events-none absolute inset-0 h-full w-full"
@@ -336,62 +323,77 @@ export function RoutineCardNode({
             </svg>
           ) : null}
 
-          <div
-            className="relative flex h-full flex-col gap-1.5"
-            style={{ opacity: contentOpacity }}
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+
+              if (interactionLocked) {
+                return;
+              }
+
+              onToggleSelect(item.id);
+            }}
+            className="relative z-10 h-full w-full bg-transparent px-3 py-2 text-left transition-all duration-200"
           >
-            <div className="flex items-center gap-2">
-              <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
-                {item.tool}
-              </div>
-              <div className="min-w-0 flex-1 truncate whitespace-nowrap pr-7 text-[13px] font-semibold leading-5 tracking-[-0.01em] text-neutral-950">
-                {item.name}
-              </div>
-            </div>
-
-            <div className="mt-0.5 flex items-center justify-between gap-2">
-              <div
-                className={`mt-0.5 h-8 w-1.5 shrink-0 rounded-full ${getStatusAccent(item.status, item.color)}`}
-              />
-
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold leading-none text-neutral-950">
-                  {item.status}
+            <div
+              className="flex h-full flex-col gap-1.5"
+              style={{ opacity: contentOpacity }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
+                  {item.tool}
                 </div>
-                <div className="mt-0.5 truncate text-[10px] leading-none text-neutral-500">
-                  {item.detail}
+                <div className="min-w-0 flex-1 truncate whitespace-nowrap pr-7 text-[13px] font-semibold leading-5 tracking-[-0.01em] text-neutral-950">
+                  {item.name}
                 </div>
               </div>
-            </div>
 
-            <div className="mt-0.5 flex items-center justify-between gap-2">
-              <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden">
+              <div className="mt-0.5 flex items-center justify-between gap-2">
                 <div
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPresenceDot(item.ownerPresence)}`}
+                  className={`mt-0.5 h-8 w-1.5 shrink-0 rounded-full ${getStatusAccent(item.status, item.color)}`}
                 />
-                <div className="truncate text-[10px] font-medium text-neutral-700">
-                  {item.owner}
+
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-semibold leading-none text-neutral-950">
+                    {item.status}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] leading-none text-neutral-500">
+                    {item.detail}
+                  </div>
                 </div>
               </div>
 
-              <div className="shrink-0 flex items-center gap-1 text-[10px]">
-                <span className="text-neutral-400">
-                  {isCompleted ? "Conclusao" : "EST"}
-                </span>
-                <span className="font-semibold text-neutral-900">
-                  {isCompleted ? item.completedAt : item.forecast}
-                </span>
-                {!isCompleted && item.variance ? (
-                  <span
-                    className={`font-semibold ${getVarianceClass(item.varianceTone)}`}
-                  >
-                    {item.variance}
+              <div className="mt-0.5 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden">
+                  <div
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPresenceDot(item.ownerPresence)}`}
+                  />
+                  <div className="truncate text-[10px] font-medium text-neutral-700">
+                    {item.owner}
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-1 text-[10px]">
+                  <span className="text-neutral-400">
+                    {isCompleted ? "Conclusao" : "EST"}
                   </span>
-                ) : null}
+                  <span className="font-semibold text-neutral-900">
+                    {isCompleted ? item.completedAt : item.forecast}
+                  </span>
+                  {!isCompleted && item.variance ? (
+                    <span
+                      className={`font-semibold ${getVarianceClass(item.varianceTone)}`}
+                    >
+                      {item.variance}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
-        </button>
+          </button>
+        </div>
 
         <div className="absolute right-3 top-[8px] z-[60] flex h-5 items-center">
           {showActionButton ? (
