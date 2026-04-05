@@ -184,19 +184,19 @@ export default function RoutineMap() {
               event.stopPropagation();
               toggleFilterPanel();
             }}
-            className="pointer-events-auto flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-[12px] font-medium text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+            className="routine-ui-button pointer-events-auto flex h-11 items-center gap-2 rounded-full px-4 text-[12px] font-medium text-slate-800"
           >
             <FilterButtonIcon />
             <span>Filtros</span>
             {activeFilterCount > 0 ? (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#4285f4] px-1.5 text-[11px] font-semibold text-white">
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-900 px-1.5 text-[11px] font-semibold text-white">
                 {activeFilterCount}
               </span>
             ) : null}
           </button>
 
           {gridMode ? (
-            <div className="flex h-10 items-center rounded-full border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700">
+            <div className="routine-ui-surface flex h-11 items-center rounded-full px-3 text-[12px] font-medium text-slate-700">
               {filteredCards.length} de {routineCards.length}
             </div>
           ) : null}
@@ -230,7 +230,7 @@ export default function RoutineMap() {
             <RoutineMapControls
               onZoomOut={() => zoomByStep(-BUTTON_ZOOM_STEP)}
               onZoomIn={() => zoomByStep(BUTTON_ZOOM_STEP)}
-              onReset={resetView}
+              onFitView={resetView}
             />
 
             <RoutineMapViewport

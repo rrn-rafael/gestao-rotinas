@@ -20,13 +20,16 @@ Quando o ambiente subir:
 ## Testar uma versao candidata
 
 Este repositorio usa sempre a mesma branch temporaria de teste:
-- `codex/teste`
+- `codex/test`
 
 Para testar uma alteracao no mesmo Codespace:
 1. Rode `git fetch origin`
-2. Rode `git checkout codex/teste`
+2. Rode `git checkout codex/test`
 3. Rode `git pull`
 4. Rode `npm run dev -- --host 0.0.0.0 --port 5173`
+
+Promocao para baseline:
+- so atualize `main` depois de aprovacao explicita do usuario
 
 Se a alteracao for reprovada:
 1. Rode `git fetch origin`

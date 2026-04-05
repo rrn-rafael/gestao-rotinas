@@ -11,6 +11,14 @@
     sans-serif;
   color: #0f172a;
   background: #f4f7fb;
+  --routine-ui-surface: rgba(255, 255, 255, 0.96);
+  --routine-ui-border: rgba(148, 163, 184, 0.28);
+  --routine-ui-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  --routine-ui-shadow-hover:
+    0 16px 30px rgba(15, 23, 42, 0.14),
+    0 5px 12px rgba(15, 23, 42, 0.08);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -38,6 +46,39 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+.routine-ui-surface,
+.routine-ui-button {
+  border: 1px solid var(--routine-ui-border);
+  background: var(--routine-ui-surface);
+  box-shadow: var(--routine-ui-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.routine-ui-button {
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
+}
+
+.routine-ui-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, 0.38);
+  background: #ffffff;
+  box-shadow: var(--routine-ui-shadow-hover);
+}
+
+.routine-ui-button:focus-visible,
+.routine-ui-focus:focus-visible {
+  outline: none;
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow:
+    0 0 0 4px rgba(96, 165, 250, 0.16),
+    var(--routine-ui-shadow-hover);
 }
 
 .routine-card-runner {

@@ -17,6 +17,13 @@ The files inside `agents/` are the specialist instructions for each domain.
 - When a task spans multiple domains, apply the specialists in the execution order below.
 - No domain may make decisions outside its ownership area.
 
+## Branch And Approval Policy
+- All implementation work must happen on `codex/test`.
+- If work is found on any other branch, move it to `codex/test` before continuing.
+- Treat `main` as a protected approved baseline.
+- Do not merge, fast-forward, rebase onto, or otherwise update `main` without explicit user approval in the current conversation.
+- After local validation, stop on `codex/test` and wait for the user's approval before any promotion step.
+
 ## Conflict Resolution
 1. Data semantics overrides aesthetics.
 2. Product designer overrides implementation details.
