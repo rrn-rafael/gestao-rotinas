@@ -1,5 +1,16 @@
 import type { CardRect } from "./types";
 
+type ConnectorPoint = {
+  x: number;
+  y: number;
+};
+
+type ConnectorGeometry = {
+  path: string;
+  start: ConnectorPoint;
+  end: ConnectorPoint;
+};
+
 export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -41,6 +52,13 @@ export function areRectMapsSimilar(
 }
 
 export function buildConnectorPath(fromRect: CardRect, toRect: CardRect) {
+  return buildConnectorGeometry(fromRect, toRect).path;
+}
+
+export function buildConnectorGeometry(
+  fromRect: CardRect,
+  toRect: CardRect,
+): ConnectorGeometry {
   const startX = fromRect.x + fromRect.width;
   const startY = fromRect.y + fromRect.height / 2;
   const endX = toRect.x;
@@ -48,5 +66,15 @@ export function buildConnectorPath(fromRect: CardRect, toRect: CardRect) {
   const distance = Math.max(24, endX - startX);
   const bend = Math.min(40, Math.max(18, distance * 0.35));
 
-  return `M ${quantize(startX)} ${quantize(startY)} C ${quantize(startX + bend)} ${quantize(startY)}, ${quantize(endX - bend)} ${quantize(endY)}, ${quantize(endX)} ${quantize(endY)}`;
+  return {
+    start: {
+      x: quantize(startX),
+      y: quantize(startY),
+    },
+    end: {
+      x: quantize(endX),
+      y: quantize(endY),
+    },
+    path: `M ${quantize(startX)} ${quantize(startY)} C ${quantize(startX + bend)} ${quantize(startY)}, ${quantize(endX - bend)} ${quantize(endY)}, ${quantize(endX)} ${quantize(endY)}`,
+  };
 }

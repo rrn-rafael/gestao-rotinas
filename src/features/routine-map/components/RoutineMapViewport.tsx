@@ -3,7 +3,6 @@ import type {
   PointerEventHandler,
   ReactNode,
   RefObject,
-  WheelEventHandler,
 } from "react";
 
 import type { ViewState } from "../model/types";
@@ -18,7 +17,6 @@ type RoutineMapViewportProps = {
   onPointerMove: PointerEventHandler<HTMLDivElement>;
   onPointerUp: PointerEventHandler<HTMLDivElement>;
   onPointerCancel: PointerEventHandler<HTMLDivElement>;
-  onWheel: WheelEventHandler<HTMLDivElement>;
   children: ReactNode;
 };
 
@@ -32,18 +30,16 @@ export function RoutineMapViewport({
   onPointerMove,
   onPointerUp,
   onPointerCancel,
-  onWheel,
   children,
 }: RoutineMapViewportProps) {
   return (
     <div
       ref={viewportRef}
-      className="relative z-10 h-full w-full touch-none"
+      className="relative z-10 h-full w-full overflow-hidden touch-none overscroll-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
-      onWheel={onWheel}
       style={{ cursor }}
     >
       <div

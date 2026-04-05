@@ -6,7 +6,7 @@ export const CARD_WIDTH = 208;
 export const CARD_HEIGHT = 104;
 export const CARD_GAP = 16;
 export const MAP_PADDING = 40;
-export const MIN_SCALE = 0.5;
+export const MIN_SCALE = 0.15;
 export const MAX_SCALE = 1.8;
 
 export const INITIAL_VIEW: ViewState = {

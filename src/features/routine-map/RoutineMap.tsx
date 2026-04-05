@@ -54,6 +54,7 @@ function FilterButtonIcon() {
 }
 
 export default function RoutineMap() {
+  const BUTTON_ZOOM_STEP = 0.15;
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -120,6 +121,7 @@ export default function RoutineMap() {
     cursor,
     resetView,
     zoomByStep,
+    onWheelCapture,
     viewportHandlers,
   } = useRoutineMapCamera({
     viewportRef,
@@ -167,7 +169,10 @@ export default function RoutineMap() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-white text-neutral-950">
+    <div
+      className="h-screen overflow-hidden bg-white text-neutral-950"
+      onWheelCapture={onWheelCapture}
+    >
       <main className="relative h-full overflow-hidden bg-white text-[12px]">
         <RoutineCanvasBackground />
 
@@ -222,8 +227,8 @@ export default function RoutineMap() {
         ) : (
           <div className="relative z-10 h-full" onClick={handleClearSelection}>
             <RoutineMapControls
-              onZoomOut={() => zoomByStep(-0.1)}
-              onZoomIn={() => zoomByStep(0.1)}
+              onZoomOut={() => zoomByStep(-BUTTON_ZOOM_STEP)}
+              onZoomIn={() => zoomByStep(BUTTON_ZOOM_STEP)}
               onReset={resetView}
             />
 
@@ -237,7 +242,6 @@ export default function RoutineMap() {
               onPointerMove={viewportHandlers.onPointerMove}
               onPointerUp={viewportHandlers.onPointerUp}
               onPointerCancel={viewportHandlers.onPointerCancel}
-              onWheel={viewportHandlers.onWheel}
             >
               <RoutineConnectorLayer
                 width={layout.width}

@@ -56,7 +56,7 @@ export function RoutineCardNode({
       onPointerLeave={() => {
         setHovered(false);
       }}
-      className={`group rounded-[16px] bg-white px-3 py-2 text-left transition-all duration-200 ${isCanvasMode ? "absolute" : "relative w-full"}`}
+      className={`group overflow-hidden rounded-[16px] bg-white px-3 py-2 text-left transition-all duration-200 ${isCanvasMode ? "absolute" : "relative w-full"}`}
       style={{
         left: isCanvasMode ? item.x : undefined,
         top: isCanvasMode ? item.y : undefined,
@@ -92,20 +92,23 @@ export function RoutineCardNode({
 
       {isRunning ? (
         <svg
-          className="pointer-events-none absolute inset-0 overflow-visible"
-          viewBox={`0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
           aria-hidden="true"
         >
           <rect
             className="routine-card-runner"
-            x="1.25"
-            y="1.25"
-            width={CARD_WIDTH - 2.5}
-            height={CARD_HEIGHT - 2.5}
-            rx="16"
+            x="1"
+            y="1"
+            width="98"
+            height="98"
+            rx="15.4"
+            ry="15.4"
             pathLength="100"
             fill="none"
             stroke={`rgb(${runnerColor})`}
+            vectorEffect="non-scaling-stroke"
             style={{ ["--runner-color" as string]: runnerColor }}
           />
         </svg>
