@@ -253,7 +253,7 @@ function RoutineCardActionMenu({
 
       top = Math.min(Math.max(top, minTop), maxTop);
 
-      const preferredLeft = anchorRect.right - menuRect.width;
+      const preferredLeft = anchorRect.left;
       const left = Math.min(Math.max(preferredLeft, minLeft), maxLeft);
 
       setPosition((currentPosition) => {
@@ -288,7 +288,7 @@ function RoutineCardActionMenu({
         left: position.left,
         top: position.top,
         transformOrigin:
-          position.placement === "top-end" ? "bottom right" : "top right",
+          position.placement === "top-end" ? "bottom left" : "top left",
         visibility: "visible",
       }
     : {
