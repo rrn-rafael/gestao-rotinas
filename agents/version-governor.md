@@ -15,6 +15,8 @@ Rules:
 - after implementation and local validation, request test/approval before promoting
 - all in-progress implementation must live on `codex/test`
 - if work is discovered on another branch, move it to `codex/test` before continuing
+- before handing off for testing, stage, commit, and push the validated candidate to `origin/codex/test`
+- never describe a branch as ready for testing while intended changes are still only local
 - never switch to, merge into, fast-forward, or otherwise update `main` without explicit user approval in the current conversation
 - remain on `codex/test` after validation and wait for approval before any promotion step
 - if rejected, do not stack new work on top of the rejected candidate
