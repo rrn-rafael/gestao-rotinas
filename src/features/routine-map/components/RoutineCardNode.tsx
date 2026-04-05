@@ -344,8 +344,56 @@ export function RoutineCardNode({
               <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
                 {item.tool}
               </div>
-              <div className="min-w-0 flex-1 truncate whitespace-nowrap pr-8 text-[13px] font-semibold tracking-[-0.01em] text-neutral-950">
-                {item.name}
+              <div className="min-w-0 flex flex-1 items-center gap-1.5">
+                <div className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] font-semibold leading-5 tracking-[-0.01em] text-neutral-950">
+                  {item.name}
+                </div>
+
+                {showActionButton ? (
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSetActiveActionMenuCardId(menuOpen ? null : item.id);
+                      }}
+                      className="flex h-5 w-5 items-center justify-center rounded-[7px] bg-slate-100/90 text-[12px] leading-none text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition hover:bg-white hover:text-slate-800"
+                      aria-label="Abrir acoes da rotina"
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpen}
+                    >
+                      <span className="-translate-y-[1px]">...</span>
+                    </button>
+
+                    {menuOpen ? (
+                      <div className="absolute bottom-full left-0 z-[60] mb-1.5 w-max min-w-[118px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
+                        <div className="divide-y divide-slate-200/70">
+                          {actionItems.map((actionItem) => (
+                            <button
+                              key={actionItem.id}
+                              type="button"
+                              disabled={!actionItem.enabled}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSetActiveActionMenuCardId(null);
+                              }}
+                              className="flex w-full items-center gap-2.5 whitespace-nowrap px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-white disabled:hover:text-slate-300"
+                            >
+                              <span className="flex h-4 w-4 items-center justify-center">
+                                {actionItem.icon}
+                              </span>
+                              <span>{actionItem.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="pointer-events-none flex h-5 w-5 shrink-0 items-center justify-center text-neutral-400">
+                    <CardIconGlyph type={item.icon} />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -393,53 +441,6 @@ export function RoutineCardNode({
           </div>
         </button>
 
-        <div className="absolute right-3 top-2.5 z-[50]">
-          {showActionButton ? (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSetActiveActionMenuCardId(menuOpen ? null : item.id);
-                }}
-                className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-600 shadow-[0_3px_8px_rgba(15,23,42,0.16),0_1px_2px_rgba(15,23,42,0.08)] transition hover:bg-slate-50 hover:text-slate-950"
-                aria-label="Abrir acoes da rotina"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-              >
-                <span className="-translate-y-[1px] text-[15px] leading-none">...</span>
-              </button>
-
-              {menuOpen ? (
-                <div className="absolute bottom-full left-0 z-[60] mb-1.5 w-max min-w-[118px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
-                  <div className="divide-y divide-slate-200/70">
-                    {actionItems.map((actionItem) => (
-                      <button
-                        key={actionItem.id}
-                        type="button"
-                        disabled={!actionItem.enabled}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onSetActiveActionMenuCardId(null);
-                        }}
-                        className="flex w-full items-center gap-2.5 whitespace-nowrap px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-white disabled:hover:text-slate-300"
-                      >
-                        <span className="flex h-4 w-4 items-center justify-center">
-                          {actionItem.icon}
-                        </span>
-                        <span>{actionItem.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="pointer-events-none flex h-4 w-4 items-center justify-center">
-              <CardIconGlyph type={item.icon} />
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
