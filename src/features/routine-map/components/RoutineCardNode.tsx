@@ -248,7 +248,7 @@ export function RoutineCardNode({
         top: isCanvasMode ? item.y : undefined,
         width: isCanvasMode ? CARD_WIDTH : "100%",
         height: CARD_HEIGHT,
-        zIndex: menuOpen ? 40 : undefined,
+        zIndex: menuOpen ? 80 : undefined,
       }}
     >
       {menuOpen ? (
@@ -258,13 +258,13 @@ export function RoutineCardNode({
             event.stopPropagation();
             setMenuOpen(false);
           }}
-          className="fixed inset-0 z-30 bg-slate-950/10"
+          className="fixed inset-0 z-[70] bg-slate-950/16"
           aria-label="Fechar menu de acoes"
         />
       ) : null}
 
       <div
-        className="relative z-40 h-full w-full transition-all duration-200"
+        className="relative z-[80] h-full w-full transition-all duration-200"
         style={{
           boxShadow: isSelected
             ? "0 14px 34px rgba(15,23,42,0.08)"
@@ -389,7 +389,7 @@ export function RoutineCardNode({
           </div>
         </button>
 
-        <div className="absolute right-3 top-2.5 z-10">
+        <div className="absolute right-3 top-2.5 z-[90]">
           {showActionButton ? (
             <div className="relative">
               <button
@@ -405,7 +405,7 @@ export function RoutineCardNode({
               </button>
 
               {menuOpen ? (
-                <div className="absolute bottom-full left-0 z-20 mb-1.5 w-max min-w-[120px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
+                <div className="absolute bottom-full left-0 z-[100] mb-1.5 w-max min-w-[120px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
                   <div className="divide-y divide-slate-200/70">
                     {actionItems.map((actionItem) => (
                       <button
