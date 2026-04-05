@@ -8,7 +8,6 @@ import {
 import type {
   PointerEvent as ReactPointerEvent,
   RefObject,
-  WheelEvent as ReactWheelEvent,
 } from "react";
 
 import { clamp, quantize } from "../model/geometry";
@@ -38,6 +37,7 @@ type TouchGestureState = {
 };
 
 type UseRoutineMapCameraParams = {
+  rootRef: RefObject<HTMLDivElement>;
   viewportRef: RefObject<HTMLDivElement>;
   worldWidth: number;
   worldHeight: number;
@@ -47,6 +47,7 @@ type UseRoutineMapCameraParams = {
 };
 
 export function useRoutineMapCamera({
+  rootRef,
   viewportRef,
   worldWidth,
   worldHeight,
@@ -88,6 +89,15 @@ export function useRoutineMapCamera({
     homeViewRef.current = nextView;
     commitView(nextView);
   }, [commitView, initialView.scale, viewportRef, worldHeight, worldWidth]);
+
+  const isEventInsideViewport = useCallback(
+    (target: EventTarget | null) => {
+      const viewportElement = viewportRef.current;
+
+      return target instanceof Node && !!viewportElement?.contains(target);
+    },
+    [viewportRef],
+  );
 
   const toViewportPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -437,21 +447,29 @@ export function useRoutineMapCamera({
     [buildTouchGesture, endPan, syncTouchGesture],
   );
 
-  const onWheelCapture = useCallback(
-    (event: ReactWheelEvent<HTMLElement>) => {
+  useEffect(() => {
+    const rootElement = rootRef.current;
+
+    if (!rootElement) {
+      return;
+    }
+
+    type WebkitGestureEvent = Event & {
+      scale: number;
+      clientX: number;
+      clientY: number;
+    };
+
+    let gestureOriginScale = viewRef.current.scale;
+
+    const handleWheel = (event: WheelEvent) => {
       if (!(event.ctrlKey || event.metaKey)) {
         return;
       }
 
       event.preventDefault();
-      const targetNode = event.target;
-      const viewportElement = viewportRef.current;
 
-      if (!(targetNode instanceof Node) || !viewportElement) {
-        return;
-      }
-
-      if (!viewportElement.contains(targetNode)) {
+      if (!isEventInsideViewport(event.target)) {
         return;
       }
 
@@ -462,9 +480,82 @@ export function useRoutineMapCamera({
         event.clientX,
         event.clientY,
       );
-    },
-    [viewportRef, zoomAtClientPoint],
-  );
+    };
+
+    const handleGestureStart = (event: Event) => {
+      event.preventDefault();
+
+      if (!isEventInsideViewport(event.target)) {
+        return;
+      }
+
+      gestureOriginScale = viewRef.current.scale;
+    };
+
+    const handleGestureChange = (event: Event) => {
+      event.preventDefault();
+
+      if (!isEventInsideViewport(event.target)) {
+        return;
+      }
+
+      const gestureEvent = event as WebkitGestureEvent;
+
+      zoomAtClientPoint(
+        gestureOriginScale * gestureEvent.scale,
+        gestureEvent.clientX,
+        gestureEvent.clientY,
+      );
+    };
+
+    const handleGestureEnd = (event: Event) => {
+      event.preventDefault();
+    };
+
+    rootElement.addEventListener("wheel", handleWheel, {
+      capture: true,
+      passive: false,
+    });
+    rootElement.addEventListener(
+      "gesturestart",
+      handleGestureStart as EventListener,
+      {
+        capture: true,
+        passive: false,
+      },
+    );
+    rootElement.addEventListener(
+      "gesturechange",
+      handleGestureChange as EventListener,
+      {
+        capture: true,
+        passive: false,
+      },
+    );
+    rootElement.addEventListener("gestureend", handleGestureEnd as EventListener, {
+      capture: true,
+      passive: false,
+    });
+
+    return () => {
+      rootElement.removeEventListener("wheel", handleWheel, true);
+      rootElement.removeEventListener(
+        "gesturestart",
+        handleGestureStart as EventListener,
+        true,
+      );
+      rootElement.removeEventListener(
+        "gesturechange",
+        handleGestureChange as EventListener,
+        true,
+      );
+      rootElement.removeEventListener(
+        "gestureend",
+        handleGestureEnd as EventListener,
+        true,
+      );
+    };
+  }, [isEventInsideViewport, rootRef, zoomAtClientPoint]);
 
   return {
     view,
@@ -473,7 +564,6 @@ export function useRoutineMapCamera({
     cursor: isPanning ? "grabbing" : spacePressed ? "grab" : "default",
     resetView,
     zoomByStep,
-    onWheelCapture,
     viewportHandlers: {
       onPointerDown,
       onPointerMove,

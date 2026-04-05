@@ -55,6 +55,7 @@ function FilterButtonIcon() {
 
 export default function RoutineMap() {
   const BUTTON_ZOOM_STEP = 0.15;
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -121,9 +122,9 @@ export default function RoutineMap() {
     cursor,
     resetView,
     zoomByStep,
-    onWheelCapture,
     viewportHandlers,
   } = useRoutineMapCamera({
+    rootRef,
     viewportRef,
     worldWidth: layout.width,
     worldHeight: layout.height,
@@ -170,8 +171,8 @@ export default function RoutineMap() {
 
   return (
     <div
+      ref={rootRef}
       className="h-screen overflow-hidden bg-white text-neutral-950"
-      onWheelCapture={onWheelCapture}
     >
       <main className="relative h-full overflow-hidden bg-white text-[12px]">
         <RoutineCanvasBackground />
