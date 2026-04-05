@@ -30,19 +30,19 @@ function MapControlButton({
   label,
   onClick,
   children,
-  compact = false,
+  bordered = true,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
-  compact?: boolean;
+  bordered?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`routine-ui-button flex items-center justify-center gap-2 rounded-full text-[12px] font-medium text-slate-800 ${
-        compact ? "h-11 min-w-[44px] px-4" : "h-11 px-4"
+      className={`flex h-10 w-10 items-center justify-center bg-white text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 ${
+        bordered ? "border-b border-slate-200" : ""
       }`}
       aria-label={label}
     >
@@ -58,33 +58,28 @@ export function RoutineMapControls({
 }: RoutineMapControlsProps) {
   return (
     <div
-      className="absolute bottom-5 right-5 z-30 flex flex-col items-end gap-2"
+      className="absolute bottom-5 right-5 z-30 overflow-hidden rounded-[18px] border border-slate-300 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.1),0_2px_6px_rgba(15,23,42,0.06)]"
       onClick={(event) => {
         event.stopPropagation();
       }}
     >
-      <div className="flex flex-col gap-2">
-        <MapControlButton
-          label="Aumentar zoom"
-          onClick={onZoomIn}
-          compact={true}
-        >
+      <div className="flex flex-col">
+        <MapControlButton label="Aumentar zoom" onClick={onZoomIn}>
           <span className="text-[20px] leading-none">+</span>
         </MapControlButton>
 
-        <MapControlButton
-          label="Diminuir zoom"
-          onClick={onZoomOut}
-          compact={true}
-        >
+        <MapControlButton label="Diminuir zoom" onClick={onZoomOut}>
           <span className="text-[20px] leading-none">-</span>
         </MapControlButton>
-      </div>
 
-      <MapControlButton label="Enquadrar mapa" onClick={onFitView}>
-        <FitViewIcon />
-        <span>Enquadrar</span>
-      </MapControlButton>
+        <MapControlButton
+          label="Enquadrar mapa"
+          onClick={onFitView}
+          bordered={false}
+        >
+          <FitViewIcon />
+        </MapControlButton>
+      </div>
     </div>
   );
 }

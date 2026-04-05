@@ -87,7 +87,7 @@ function MultiSelectSection<T extends string>({
   }
 
   return (
-    <section className="border-t border-slate-200/80 px-4 py-3">
+    <section className="border-t border-slate-200 px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-[12px] font-semibold text-slate-900">{title}</h3>
         {selected.length > 0 ? (
@@ -97,31 +97,31 @@ function MultiSelectSection<T extends string>({
         ) : null}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
         <button
           type="button"
           onClick={handleSelectAll}
-          className="routine-ui-button rounded-full px-2.5 py-1 font-medium text-slate-600"
+          className="transition hover:text-slate-900"
         >
           Selecionar todos
         </button>
         <button
           type="button"
           onClick={handleClear}
-          className="routine-ui-button rounded-full px-2.5 py-1 font-medium text-slate-600"
+          className="transition hover:text-slate-900"
         >
           Limpar
         </button>
         <button
           type="button"
           onClick={handleInvert}
-          className="routine-ui-button rounded-full px-2.5 py-1 font-medium text-slate-600"
+          className="transition hover:text-slate-900"
         >
           Inverter
         </button>
       </div>
 
-      <div className="mt-2 max-h-[148px] overflow-y-auto rounded-[18px] border border-slate-200 bg-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+      <div className="mt-2 max-h-[148px] overflow-y-auto rounded-[14px] border border-slate-200 bg-white">
         {visibleOptions.length === 0 ? (
           <div className="px-3 py-4 text-[11px] text-slate-400">
             Nenhuma opcao encontrada.
@@ -213,18 +213,18 @@ export function RoutineFilterSidebar({
         event.stopPropagation();
       }}
     >
-      <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-4">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
         <h2 className="text-[12px] font-semibold text-slate-950">Filtros</h2>
         <button
           type="button"
           onClick={handleResetAll}
-          className="routine-ui-button rounded-full px-3 py-1.5 text-[11px] font-medium text-slate-700"
+          className="text-[11px] font-medium text-slate-500 transition hover:text-slate-900"
         >
           Limpar tudo
         </button>
       </div>
 
-      <div className="border-b border-slate-200/80 px-4 py-3">
+      <div className="border-b border-slate-200 px-4 py-3">
         <input
           type="search"
           value={searchQuery}
@@ -232,7 +232,7 @@ export function RoutineFilterSidebar({
             setSearchQuery(event.target.value);
           }}
           placeholder="Pesquisar filtros..."
-          className="routine-ui-focus h-10 w-full rounded-full border border-slate-200 bg-white px-4 text-[12px] text-slate-700 shadow-[inset_0_1px_1px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400"
+          className="h-8 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-[12px] text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#b9d0ff] focus:ring-4 focus:ring-[#edf4ff]"
         />
       </div>
 
@@ -278,18 +278,18 @@ export function RoutineFilterSidebar({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-slate-200/80 px-4 py-3">
+      <div className="grid grid-cols-2 gap-2 border-t border-slate-200 px-4 py-3">
         <button
           type="button"
           onClick={handleApplyFilters}
-          className="routine-ui-button h-10 rounded-full px-3 text-[12px] font-semibold text-slate-900"
+          className="h-9 rounded-[10px] bg-[#5b9cf2] px-3 text-[12px] font-medium text-white transition hover:bg-[#4285f4]"
         >
           Aplicar
         </button>
         <button
           type="button"
           onClick={handleClearDraft}
-          className="routine-ui-button h-10 rounded-full px-3 text-[12px] font-medium text-slate-600"
+          className="h-9 rounded-[10px] border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
         >
           Limpar
         </button>
