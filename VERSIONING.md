@@ -30,23 +30,23 @@ Use this when the repository is under Git.
 
 - `main` branch:
   contains only the latest approved baseline
-- `codex/test` branch:
+- `codex/teste` branch:
   contains the current candidate under validation
 - optional tag:
   `approved/vX.Y.Z` for every approved baseline
 
 Recommended promotion logic:
-1. Create or reset `codex/test` from the approved baseline.
+1. Create or reset `codex/teste` from the approved baseline.
 2. Implement and validate the change.
 3. Request testing and explicit user approval.
-4. If approved, merge or fast-forward `main`, optionally create a tag, and delete or recycle `codex/test`.
-5. If rejected, delete or recreate `codex/test` from the last approved baseline and return to `main`.
+4. If approved, merge or fast-forward `main`, optionally create a tag, and delete or recycle `codex/teste`.
+5. If rejected, delete or recreate `codex/teste` from the last approved baseline and return to `main`.
 
 ## Practical Rule For This Repository
-- keep only one test branch at a time: `codex/test`
+- keep only one test branch at a time: `codex/teste`
 - do not create multiple concurrent candidate branches
 - do not treat a change as approved unless the user explicitly says it is approved
 - after each implementation, stop at "awaiting test"
 - never update `main` without explicit user approval in the current conversation
-- if rejected, delete or recreate `codex/test` from the last approved baseline
-- if approved, promote `codex/test` to `main`
+- if rejected, delete or recreate `codex/teste` from the last approved baseline
+- if approved, promote `codex/teste` to `main`
