@@ -6,6 +6,8 @@ type RoutineCardGridProps = {
   cards: readonly RoutineCard[];
   selectedId: string | null;
   focusSets: FocusSets;
+  activeActionMenuCardId: string | null;
+  onSetActiveActionMenuCardId: (cardId: string | null) => void;
   onToggleSelect: (cardId: string) => void;
 };
 
@@ -13,6 +15,8 @@ export function RoutineCardGrid({
   cards,
   selectedId,
   focusSets,
+  activeActionMenuCardId,
+  onSetActiveActionMenuCardId,
   onToggleSelect,
 }: RoutineCardGridProps) {
   if (cards.length === 0) {
@@ -34,13 +38,32 @@ export function RoutineCardGrid({
   }
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+    <div className="relative">
+      {activeActionMenuCardId ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSetActiveActionMenuCardId(null);
+          }}
+          className="absolute inset-0 z-20 bg-slate-950/12"
+          aria-label="Fechar menu de acoes"
+        />
+      ) : null}
+
+      <div className="relative grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
       {cards.map((card) => {
-        const relation = getCardRelation(card.id, selectedId, focusSets);
+        const hasActiveActionMenu = activeActionMenuCardId !== null;
+        const isMenuCard = activeActionMenuCardId === card.id;
+        const relation = hasActiveActionMenu
+          ? isMenuCard
+            ? "selected"
+            : "idle"
+          : getCardRelation(card.id, selectedId, focusSets);
         const opacity = getCardOpacity(
           card.status,
           relation,
-          selectedId !== null,
+          hasActiveActionMenu ? isMenuCard : selectedId !== null,
         );
 
         return (
@@ -51,10 +74,14 @@ export function RoutineCardGrid({
             opacity={opacity}
             interactionLocked={false}
             layoutMode="grid"
+            activeActionMenuCardId={activeActionMenuCardId}
+            onSetActiveActionMenuCardId={onSetActiveActionMenuCardId}
+            forceHighlighted={isMenuCard}
             onToggleSelect={onToggleSelect}
           />
         );
       })}
+      </div>
     </div>
   );
 }

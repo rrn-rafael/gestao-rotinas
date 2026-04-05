@@ -17,13 +17,18 @@ type RoutineCardNodeProps = {
   relation: CardRelation;
   opacity: number;
   interactionLocked: boolean;
+  activeActionMenuCardId: string | null;
+  onSetActiveActionMenuCardId: (cardId: string | null) => void;
   buttonRef?: (node: HTMLButtonElement | null) => void;
   layoutMode?: "canvas" | "grid";
+  forceHighlighted?: boolean;
   onToggleSelect: (cardId: string) => void;
 };
 
+type CardActionId = "start" | "stop" | "edit" | "clear" | "complete";
+
 type CardActionItem = {
-  id: "start" | "stop" | "edit" | "clear" | "complete";
+  id: CardActionId;
   label: string;
   icon: ReactNode;
   enabled: boolean;
@@ -39,7 +44,7 @@ function PlayIcon() {
       aria-hidden="true"
     >
       <path
-        d="M5.5 4.1L11.1 8L5.5 11.9V4.1Z"
+        d="M5.3 4.35L10.95 8L5.3 11.65V4.35Z"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinecap="round"
@@ -59,7 +64,7 @@ function PauseIcon() {
       aria-hidden="true"
     >
       <path
-        d="M6 4.4V11.6M10 4.4V11.6"
+        d="M5.8 4.25V11.75M10.2 4.25V11.75"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinecap="round"
@@ -78,11 +83,11 @@ function StopIcon() {
       aria-hidden="true"
     >
       <rect
-        x="4.3"
-        y="4.3"
-        width="7.4"
-        height="7.4"
-        rx="1.6"
+        x="4.25"
+        y="4.25"
+        width="7.5"
+        height="7.5"
+        rx="1.8"
         stroke="currentColor"
         strokeWidth="1.35"
       />
@@ -100,7 +105,7 @@ function EditIcon() {
       aria-hidden="true"
     >
       <path
-        d="M10.85 3.95L12.05 5.15M6.1 10.7L11.4 5.4C11.73 5.07 11.73 4.53 11.4 4.2L10.8 3.6C10.47 3.27 9.93 3.27 9.6 3.6L4.3 8.9L3.75 12.25L7.1 11.7L8.65 10.15"
+        d="M9.65 4.15L11.85 6.35M4.35 11.65L6.95 11.05L11.25 6.75C11.72 6.28 11.72 5.52 11.25 5.05L10.95 4.75C10.48 4.28 9.72 4.28 9.25 4.75L4.95 9.05L4.35 11.65Z"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinecap="round"
@@ -120,14 +125,14 @@ function ClearIcon() {
       aria-hidden="true"
     >
       <path
-        d="M6.15 5.1H11.45L9 10.1H3.7L6.15 5.1Z"
+        d="M4.6 10.6L9.75 5.45C10.15 5.05 10.8 5.05 11.2 5.45L11.55 5.8C11.95 6.2 11.95 6.85 11.55 7.25L6.4 12.4H4.6V10.6Z"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M5.1 10.1L4.25 11.5"
+        d="M8.3 12.4H11.7"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinecap="round"
@@ -145,9 +150,9 @@ function CompleteIcon() {
       className="h-3.5 w-3.5"
       aria-hidden="true"
     >
-      <circle cx="8" cy="8" r="4.8" stroke="currentColor" strokeWidth="1.35" />
+      <circle cx="8" cy="8" r="4.85" stroke="currentColor" strokeWidth="1.35" />
       <path
-        d="M5.7 8.05L7.25 9.6L10.4 6.45"
+        d="M5.55 8.1L7.2 9.75L10.5 6.45"
         stroke="currentColor"
         strokeWidth="1.35"
         strokeLinecap="round"
@@ -162,20 +167,25 @@ export function RoutineCardNode({
   relation,
   opacity,
   interactionLocked,
+  activeActionMenuCardId,
+  onSetActiveActionMenuCardId,
   buttonRef,
   layoutMode = "canvas",
+  forceHighlighted = false,
   onToggleSelect,
 }: RoutineCardNodeProps) {
   const [hovered, setHovered] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const isSelected = relation === "selected";
-  const isRelated = relation === "upstream" || relation === "downstream";
+  const menuOpen = activeActionMenuCardId === item.id;
+  const isSelected = forceHighlighted || relation === "selected";
+  const isRelated = !isSelected && (relation === "upstream" || relation === "downstream");
   const isRunning = isRunningStatus(item.status);
   const isCompleted = item.completedAt !== undefined;
   const runnerColor = getStatusRunnerColor(item.status);
   const isCanvasMode = layoutMode === "canvas";
   const elevated = hovered || menuOpen;
   const showActionButton = !interactionLocked && (hovered || menuOpen);
+  const menuContextActive = activeActionMenuCardId !== null;
+  const contentOpacity = menuContextActive && !menuOpen ? Math.min(opacity, 0.68) : opacity;
 
   const actionItems: CardActionItem[] = [
     {
@@ -217,7 +227,7 @@ export function RoutineCardNode({
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setMenuOpen(false);
+        onSetActiveActionMenuCardId(null);
       }
     }
 
@@ -226,13 +236,19 @@ export function RoutineCardNode({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [menuOpen]);
+  }, [menuOpen, onSetActiveActionMenuCardId]);
 
   useEffect(() => {
-    if (interactionLocked) {
-      setMenuOpen(false);
+    if (interactionLocked && menuOpen) {
+      onSetActiveActionMenuCardId(null);
     }
-  }, [interactionLocked]);
+  }, [interactionLocked, menuOpen, onSetActiveActionMenuCardId]);
+
+  useEffect(() => {
+    if (activeActionMenuCardId && activeActionMenuCardId !== item.id) {
+      setHovered(false);
+    }
+  }, [activeActionMenuCardId, item.id]);
 
   return (
     <div
@@ -248,29 +264,17 @@ export function RoutineCardNode({
         top: isCanvasMode ? item.y : undefined,
         width: isCanvasMode ? CARD_WIDTH : "100%",
         height: CARD_HEIGHT,
-        zIndex: menuOpen ? 80 : undefined,
+        zIndex: menuOpen ? 40 : elevated ? 10 : undefined,
       }}
     >
-      {menuOpen ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setMenuOpen(false);
-          }}
-          className="fixed inset-0 z-[70] bg-slate-950/16"
-          aria-label="Fechar menu de acoes"
-        />
-      ) : null}
-
       <div
-        className="relative z-[80] h-full w-full transition-all duration-200"
+        className="relative h-full w-full transition-all duration-200"
         style={{
           boxShadow: isSelected
-            ? "0 14px 34px rgba(15,23,42,0.08)"
+            ? "0 16px 34px rgba(15,23,42,0.12)"
             : elevated
-              ? "0 16px 36px rgba(15,23,42,0.07)"
-              : "0 12px 30px rgba(15,23,42,0.05)",
+              ? "0 14px 30px rgba(15,23,42,0.08)"
+              : "0 10px 24px rgba(15,23,42,0.05)",
           transform: isSelected
             ? "translateY(-1px) scale(1.02)"
             : elevated
@@ -334,7 +338,7 @@ export function RoutineCardNode({
 
           <div
             className="relative flex h-full flex-col gap-1.5"
-            style={{ opacity }}
+            style={{ opacity: contentOpacity }}
           >
             <div className="flex items-center gap-2">
               <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
@@ -389,23 +393,25 @@ export function RoutineCardNode({
           </div>
         </button>
 
-        <div className="absolute right-3 top-2.5 z-[90]">
+        <div className="absolute right-3 top-2.5 z-[50]">
           {showActionButton ? (
             <div className="relative">
               <button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setMenuOpen((currentValue) => !currentValue);
+                  onSetActiveActionMenuCardId(menuOpen ? null : item.id);
                 }}
-                className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-[15px] leading-none text-slate-600 shadow-[0_3px_8px_rgba(15,23,42,0.16),0_1px_2px_rgba(15,23,42,0.08)] transition hover:bg-slate-50 hover:text-slate-900"
+                className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-600 shadow-[0_3px_8px_rgba(15,23,42,0.16),0_1px_2px_rgba(15,23,42,0.08)] transition hover:bg-slate-50 hover:text-slate-950"
                 aria-label="Abrir acoes da rotina"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
               >
-                <span className="-translate-y-[1px]">...</span>
+                <span className="-translate-y-[1px] text-[15px] leading-none">...</span>
               </button>
 
               {menuOpen ? (
-                <div className="absolute bottom-full left-0 z-[100] mb-1.5 w-max min-w-[120px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
+                <div className="absolute bottom-full left-0 z-[60] mb-1.5 w-max min-w-[118px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
                   <div className="divide-y divide-slate-200/70">
                     {actionItems.map((actionItem) => (
                       <button
@@ -414,7 +420,7 @@ export function RoutineCardNode({
                         disabled={!actionItem.enabled}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setMenuOpen(false);
+                          onSetActiveActionMenuCardId(null);
                         }}
                         className="flex w-full items-center gap-2.5 whitespace-nowrap px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-white disabled:hover:text-slate-300"
                       >

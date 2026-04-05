@@ -16,6 +16,7 @@ type RoutineConnectorLayerProps = {
   cardRects: Record<string, CardRect>;
   selectedId: string | null;
   focusSets: FocusSets;
+  dimmed?: boolean;
 };
 
 export function RoutineConnectorLayer({
@@ -25,6 +26,7 @@ export function RoutineConnectorLayer({
   cardRects,
   selectedId,
   focusSets,
+  dimmed = false,
 }: RoutineConnectorLayerProps) {
   const connectorPaths: {
     key: string;
@@ -47,7 +49,7 @@ export function RoutineConnectorLayer({
     const isHighlighted =
       relation === "upstream" || relation === "downstream";
     const stroke = isHighlighted ? "#F59E0B" : "#D1D5DB";
-    const opacity = selectedId ? (isHighlighted ? 1 : 0.18) : 1;
+    const opacity = dimmed ? 0.18 : selectedId ? (isHighlighted ? 1 : 0.18) : 1;
     const geometry = buildConnectorGeometry(fromRect, toRect);
 
     connectorPaths.push({

@@ -4,6 +4,7 @@ type RoutineMapControlsProps = {
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
+  dimmed?: boolean;
 };
 
 function FitViewIcon() {
@@ -55,10 +56,13 @@ export function RoutineMapControls({
   onZoomOut,
   onZoomIn,
   onFitView,
+  dimmed = false,
 }: RoutineMapControlsProps) {
   return (
     <div
-      className="absolute bottom-5 right-5 z-30 overflow-hidden rounded-[18px] border border-slate-300 bg-white shadow-[0_3px_8px_rgba(15,23,42,0.16),0_1px_2px_rgba(15,23,42,0.08)]"
+      className={`absolute bottom-5 right-5 z-30 overflow-hidden rounded-[18px] border border-slate-300 bg-white shadow-[0_3px_8px_rgba(15,23,42,0.16),0_1px_2px_rgba(15,23,42,0.08)] transition ${
+        dimmed ? "pointer-events-none opacity-30" : ""
+      }`}
       onClick={(event) => {
         event.stopPropagation();
       }}

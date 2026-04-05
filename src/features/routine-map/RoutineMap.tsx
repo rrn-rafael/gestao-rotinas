@@ -63,6 +63,9 @@ export default function RoutineMap() {
   const [selectedId, setSelectedId] = useState<string | null>(
     DEFAULT_SELECTED_CARD_ID,
   );
+  const [activeActionMenuCardId, setActiveActionMenuCardId] = useState<
+    string | null
+  >(null);
   const [filters, setFilters] = useState<RoutineFilters>(
     DEFAULT_ROUTINE_FILTERS,
   );
@@ -104,9 +107,11 @@ export default function RoutineMap() {
     () => getActiveRoutineFilterCount(filters),
     [filters],
   );
+  const hasActiveActionMenu = activeActionMenuCardId !== null;
+  const presentedSelectedId = hasActiveActionMenu ? null : selectedId;
   const focusSets = useMemo(
-    () => buildFocusSets(selectedId, routineGraphIndexes),
-    [selectedId],
+    () => buildFocusSets(presentedSelectedId, routineGraphIndexes),
+    [presentedSelectedId],
   );
 
   useEffect(() => {
@@ -114,6 +119,12 @@ export default function RoutineMap() {
       setSelectedId(null);
     }
   }, [filteredCardIds, selectedId]);
+
+  useEffect(() => {
+    if (activeActionMenuCardId && !filteredCardIds.has(activeActionMenuCardId)) {
+      setActiveActionMenuCardId(null);
+    }
+  }, [activeActionMenuCardId, filteredCardIds]);
 
   const {
     view,
@@ -148,6 +159,11 @@ export default function RoutineMap() {
   }
 
   function handleClearSelection() {
+    if (activeActionMenuCardId) {
+      setActiveActionMenuCardId(null);
+      return;
+    }
+
     if (!spacePressed) {
       setSelectedId(null);
     }
@@ -176,6 +192,18 @@ export default function RoutineMap() {
     >
       <main className="relative h-full overflow-hidden bg-white text-[12px]">
         <RoutineCanvasBackground />
+
+        {hasActiveActionMenu ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setActiveActionMenuCardId(null);
+            }}
+            className="absolute inset-0 z-[45] bg-slate-950/10"
+            aria-label="Fechar menu de acoes"
+          />
+        ) : null}
 
         <div className="pointer-events-none absolute left-4 top-4 z-30 flex items-center gap-2">
           <button
@@ -215,22 +243,32 @@ export default function RoutineMap() {
 
         {gridMode ? (
           <div
-            className="relative z-10 h-full overflow-auto px-4 pb-4 pt-20"
+            className={`relative h-full overflow-auto px-4 pb-4 pt-20 ${
+              hasActiveActionMenu ? "z-50" : "z-10"
+            }`}
             onClick={handleClearSelection}
           >
             <RoutineCardGrid
               cards={gridCards}
-              selectedId={selectedId}
+              selectedId={presentedSelectedId}
               focusSets={focusSets}
+              activeActionMenuCardId={activeActionMenuCardId}
+              onSetActiveActionMenuCardId={setActiveActionMenuCardId}
               onToggleSelect={handleToggleSelect}
             />
           </div>
         ) : (
-          <div className="relative z-10 h-full" onClick={handleClearSelection}>
+          <div
+            className={`relative h-full ${
+              hasActiveActionMenu ? "z-50" : "z-10"
+            }`}
+            onClick={handleClearSelection}
+          >
             <RoutineMapControls
               onZoomOut={() => zoomByStep(-BUTTON_ZOOM_STEP)}
               onZoomIn={() => zoomByStep(BUTTON_ZOOM_STEP)}
               onFitView={resetView}
+              dimmed={hasActiveActionMenu}
             />
 
             <RoutineMapViewport
@@ -249,8 +287,9 @@ export default function RoutineMap() {
                 height={layout.height}
                 links={routineLinks}
                 cardRects={cardRects}
-                selectedId={selectedId}
+                selectedId={presentedSelectedId}
                 focusSets={focusSets}
+                dimmed={hasActiveActionMenu}
               />
 
               <div
@@ -258,16 +297,29 @@ export default function RoutineMap() {
                 className="absolute inset-0 z-10"
                 style={{ width: layout.width, height: layout.height }}
               >
+                {hasActiveActionMenu ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveActionMenuCardId(null);
+                    }}
+                    className="absolute inset-0 z-20 bg-slate-950/12"
+                    aria-label="Fechar menu de acoes"
+                  />
+                ) : null}
+
                 {layout.cards.map((item) => {
-                  const relation = getCardRelation(
-                    item.id,
-                    selectedId,
-                    focusSets,
-                  );
+                  const isMenuCard = activeActionMenuCardId === item.id;
+                  const relation = hasActiveActionMenu
+                    ? isMenuCard
+                      ? "selected"
+                      : "idle"
+                    : getCardRelation(item.id, presentedSelectedId, focusSets);
                   const opacity = getCardOpacity(
                     item.status,
                     relation,
-                    selectedId !== null,
+                    hasActiveActionMenu ? isMenuCard : presentedSelectedId !== null,
                   );
 
                   return (
@@ -277,6 +329,9 @@ export default function RoutineMap() {
                       relation={relation}
                       opacity={opacity}
                       interactionLocked={spacePressed || isPanning}
+                      activeActionMenuCardId={activeActionMenuCardId}
+                      onSetActiveActionMenuCardId={setActiveActionMenuCardId}
+                      forceHighlighted={isMenuCard}
                       buttonRef={(node) => {
                         cardRefs.current[item.id] = node;
                       }}
