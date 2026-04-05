@@ -1,3 +1,5 @@
+import type { RefObject } from "react";
+
 import { getCardOpacity, getCardRelation } from "../model/graph";
 import type { FocusSets, RoutineCard } from "../model/types";
 import { RoutineCardNode } from "./RoutineCardNode";
@@ -7,6 +9,7 @@ type RoutineCardGridProps = {
   selectedId: string | null;
   focusSets: FocusSets;
   activeActionMenuCardId: string | null;
+  boundaryRef: RefObject<HTMLDivElement | null>;
   onSetActiveActionMenuCardId: (cardId: string | null) => void;
   onToggleSelect: (cardId: string) => void;
 };
@@ -16,6 +19,7 @@ export function RoutineCardGrid({
   selectedId,
   focusSets,
   activeActionMenuCardId,
+  boundaryRef,
   onSetActiveActionMenuCardId,
   onToggleSelect,
 }: RoutineCardGridProps) {
@@ -52,35 +56,36 @@ export function RoutineCardGrid({
       ) : null}
 
       <div className="relative grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-      {cards.map((card) => {
-        const hasActiveActionMenu = activeActionMenuCardId !== null;
-        const isMenuCard = activeActionMenuCardId === card.id;
-        const relation = hasActiveActionMenu
-          ? isMenuCard
-            ? "selected"
-            : "idle"
-          : getCardRelation(card.id, selectedId, focusSets);
-        const opacity = getCardOpacity(
-          card.status,
-          relation,
-          hasActiveActionMenu ? isMenuCard : selectedId !== null,
-        );
+        {cards.map((card) => {
+          const hasActiveActionMenu = activeActionMenuCardId !== null;
+          const isMenuCard = activeActionMenuCardId === card.id;
+          const relation = hasActiveActionMenu
+            ? isMenuCard
+              ? "selected"
+              : "idle"
+            : getCardRelation(card.id, selectedId, focusSets);
+          const opacity = getCardOpacity(
+            card.status,
+            relation,
+            hasActiveActionMenu ? isMenuCard : selectedId !== null,
+          );
 
-        return (
-          <RoutineCardNode
-            key={card.id}
-            item={{ ...card, x: 0, y: 0 }}
-            relation={relation}
-            opacity={opacity}
-            interactionLocked={false}
-            layoutMode="grid"
-            activeActionMenuCardId={activeActionMenuCardId}
-            onSetActiveActionMenuCardId={onSetActiveActionMenuCardId}
-            forceHighlighted={isMenuCard}
-            onToggleSelect={onToggleSelect}
-          />
-        );
-      })}
+          return (
+            <RoutineCardNode
+              key={card.id}
+              item={{ ...card, x: 0, y: 0 }}
+              relation={relation}
+              opacity={opacity}
+              interactionLocked={false}
+              layoutMode="grid"
+              menuBoundaryRef={boundaryRef}
+              activeActionMenuCardId={activeActionMenuCardId}
+              onSetActiveActionMenuCardId={onSetActiveActionMenuCardId}
+              forceHighlighted={isMenuCard}
+              onToggleSelect={onToggleSelect}
+            />
+          );
+        })}
       </div>
     </div>
   );

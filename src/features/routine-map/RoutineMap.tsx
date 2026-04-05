@@ -57,6 +57,7 @@ export default function RoutineMap() {
   const BUTTON_ZOOM_STEP = 0.15;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const gridViewportRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -243,6 +244,7 @@ export default function RoutineMap() {
 
         {gridMode ? (
           <div
+            ref={gridViewportRef}
             className={`relative h-full overflow-auto px-4 pb-4 pt-20 ${
               hasActiveActionMenu ? "z-50" : "z-10"
             }`}
@@ -253,6 +255,7 @@ export default function RoutineMap() {
               selectedId={presentedSelectedId}
               focusSets={focusSets}
               activeActionMenuCardId={activeActionMenuCardId}
+              boundaryRef={gridViewportRef}
               onSetActiveActionMenuCardId={setActiveActionMenuCardId}
               onToggleSelect={handleToggleSelect}
             />
@@ -329,6 +332,7 @@ export default function RoutineMap() {
                       relation={relation}
                       opacity={opacity}
                       interactionLocked={spacePressed || isPanning}
+                      menuBoundaryRef={viewportRef}
                       activeActionMenuCardId={activeActionMenuCardId}
                       onSetActiveActionMenuCardId={setActiveActionMenuCardId}
                       forceHighlighted={isMenuCard}

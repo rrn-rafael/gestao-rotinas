@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
+import { createPortal } from "react-dom";
 
 import { CARD_HEIGHT, CARD_WIDTH } from "../model/config";
 import {
@@ -21,6 +22,7 @@ type RoutineCardNodeProps = {
   onSetActiveActionMenuCardId: (cardId: string | null) => void;
   buttonRef?: (node: HTMLButtonElement | null) => void;
   layoutMode?: "canvas" | "grid";
+  menuBoundaryRef: RefObject<HTMLElement | null>;
   forceHighlighted?: boolean;
   onToggleSelect: (cardId: string) => void;
 };
@@ -33,6 +35,29 @@ type CardActionItem = {
   icon: ReactNode;
   enabled: boolean;
 };
+
+type ActionMenuPlacement = "top-end" | "bottom-end";
+
+type ActionMenuPosition = {
+  left: number;
+  top: number;
+  placement: ActionMenuPlacement;
+};
+
+function getMenuBoundaryRect(boundaryElement: HTMLElement | null) {
+  if (boundaryElement) {
+    return boundaryElement.getBoundingClientRect();
+  }
+
+  return {
+    top: 0,
+    left: 0,
+    right: window.innerWidth,
+    bottom: window.innerHeight,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+}
 
 function PlayIcon() {
   return (
@@ -162,6 +187,149 @@ function CompleteIcon() {
   );
 }
 
+function RoutineCardActionMenu({
+  open,
+  anchorRef,
+  boundaryRef,
+  actionItems,
+  onClose,
+}: {
+  open: boolean;
+  anchorRef: RefObject<HTMLButtonElement | null>;
+  boundaryRef: RefObject<HTMLElement | null>;
+  actionItems: readonly CardActionItem[];
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<ActionMenuPosition | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+
+    let frameId = 0;
+
+    const updatePosition = () => {
+      const anchorElement = anchorRef.current;
+      const menuElement = menuRef.current;
+
+      if (!anchorElement || !menuElement) {
+        frameId = window.requestAnimationFrame(updatePosition);
+        return;
+      }
+
+      const gap = 6;
+      const padding = 8;
+      const anchorRect = anchorElement.getBoundingClientRect();
+      const menuRect = menuElement.getBoundingClientRect();
+      const boundaryRect = getMenuBoundaryRect(boundaryRef.current);
+      const minTop = boundaryRect.top + padding;
+      const maxTop = Math.max(
+        minTop,
+        boundaryRect.bottom - menuRect.height - padding,
+      );
+      const minLeft = boundaryRect.left + padding;
+      const maxLeft = Math.max(
+        minLeft,
+        boundaryRect.right - menuRect.width - padding,
+      );
+      const topPlacementTop = anchorRect.top - menuRect.height - gap;
+      const bottomPlacementTop = anchorRect.bottom + gap;
+      let placement: ActionMenuPlacement =
+        topPlacementTop >= minTop ? "top-end" : "bottom-end";
+      let top =
+        placement === "top-end" ? topPlacementTop : bottomPlacementTop;
+
+      if (placement === "bottom-end" && bottomPlacementTop > maxTop) {
+        if (topPlacementTop >= minTop) {
+          placement = "top-end";
+          top = topPlacementTop;
+        } else {
+          top = maxTop;
+        }
+      }
+
+      top = Math.min(Math.max(top, minTop), maxTop);
+
+      const preferredLeft = anchorRect.right - menuRect.width;
+      const left = Math.min(Math.max(preferredLeft, minLeft), maxLeft);
+
+      setPosition((currentPosition) => {
+        if (
+          currentPosition &&
+          currentPosition.left === left &&
+          currentPosition.top === top &&
+          currentPosition.placement === placement
+        ) {
+          return currentPosition;
+        }
+
+        return { left, top, placement };
+      });
+
+      frameId = window.requestAnimationFrame(updatePosition);
+    };
+
+    frameId = window.requestAnimationFrame(updatePosition);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [anchorRef, boundaryRef, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  const menuStyle: CSSProperties = position
+    ? {
+        left: position.left,
+        top: position.top,
+        transformOrigin:
+          position.placement === "top-end" ? "bottom right" : "top right",
+        visibility: "visible",
+      }
+    : {
+        left: -9999,
+        top: -9999,
+        visibility: "hidden",
+      };
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="fixed z-[80] w-max min-w-[118px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]"
+      style={menuStyle}
+      role="menu"
+      aria-label="Acoes da rotina"
+    >
+      <div className="divide-y divide-slate-200/70">
+        {actionItems.map((actionItem) => (
+          <button
+            key={actionItem.id}
+            type="button"
+            disabled={!actionItem.enabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+            className="flex w-full items-center gap-2.5 whitespace-nowrap px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-white disabled:hover:text-slate-300"
+            role="menuitem"
+          >
+            <span className="flex h-4 w-4 items-center justify-center">
+              {actionItem.icon}
+            </span>
+            <span>{actionItem.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function RoutineCardNode({
   item,
   relation,
@@ -171,10 +339,12 @@ export function RoutineCardNode({
   onSetActiveActionMenuCardId,
   buttonRef,
   layoutMode = "canvas",
+  menuBoundaryRef,
   forceHighlighted = false,
   onToggleSelect,
 }: RoutineCardNodeProps) {
   const [hovered, setHovered] = useState(false);
+  const actionButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuOpen = activeActionMenuCardId === item.id;
   const isSelected = forceHighlighted || relation === "selected";
   const isRelated = !isSelected && (relation === "upstream" || relation === "downstream");
@@ -399,6 +569,7 @@ export function RoutineCardNode({
           {showActionButton ? (
             <div className="relative">
               <button
+                ref={actionButtonRef}
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
@@ -411,30 +582,6 @@ export function RoutineCardNode({
               >
                 <span className="-translate-y-[1px]">...</span>
               </button>
-
-              {menuOpen ? (
-                <div className="absolute bottom-full left-0 z-[70] mb-1.5 w-max min-w-[118px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]">
-                  <div className="divide-y divide-slate-200/70">
-                    {actionItems.map((actionItem) => (
-                      <button
-                        key={actionItem.id}
-                        type="button"
-                        disabled={!actionItem.enabled}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onSetActiveActionMenuCardId(null);
-                        }}
-                        className="flex w-full items-center gap-2.5 whitespace-nowrap px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-white disabled:hover:text-slate-300"
-                      >
-                        <span className="flex h-4 w-4 items-center justify-center">
-                          {actionItem.icon}
-                        </span>
-                        <span>{actionItem.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
           ) : (
             <div className="pointer-events-none flex h-5 w-5 items-center justify-center text-neutral-400">
@@ -443,6 +590,16 @@ export function RoutineCardNode({
           )}
         </div>
       </div>
+
+      <RoutineCardActionMenu
+        open={menuOpen}
+        anchorRef={actionButtonRef}
+        boundaryRef={menuBoundaryRef}
+        actionItems={actionItems}
+        onClose={() => {
+          onSetActiveActionMenuCardId(null);
+        }}
+      />
     </div>
   );
 }
