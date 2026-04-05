@@ -47,8 +47,10 @@ type ActionMenuPosition = {
 type FloatingCardPosition = {
   left: number;
   top: number;
-  width: number;
-  height: number;
+  naturalWidth: number;
+  naturalHeight: number;
+  scaleX: number;
+  scaleY: number;
 };
 
 function getMenuBoundaryRect(boundaryElement: HTMLElement | null) {
@@ -588,14 +590,20 @@ export function RoutineCardNode({
       }
 
       const rect = visualElement.getBoundingClientRect();
+      const naturalWidth = visualElement.offsetWidth;
+      const naturalHeight = visualElement.offsetHeight;
+      const scaleX = naturalWidth > 0 ? rect.width / naturalWidth : 1;
+      const scaleY = naturalHeight > 0 ? rect.height / naturalHeight : 1;
 
       setFloatingCardPosition((currentPosition) => {
         if (
           currentPosition &&
           currentPosition.left === rect.left &&
           currentPosition.top === rect.top &&
-          currentPosition.width === rect.width &&
-          currentPosition.height === rect.height
+          currentPosition.naturalWidth === naturalWidth &&
+          currentPosition.naturalHeight === naturalHeight &&
+          currentPosition.scaleX === scaleX &&
+          currentPosition.scaleY === scaleY
         ) {
           return currentPosition;
         }
@@ -603,8 +611,10 @@ export function RoutineCardNode({
         return {
           left: rect.left,
           top: rect.top,
-          width: rect.width,
-          height: rect.height,
+          naturalWidth,
+          naturalHeight,
+          scaleX,
+          scaleY,
         };
       });
 
@@ -720,8 +730,10 @@ export function RoutineCardNode({
               style={{
                 left: floatingCardPosition.left,
                 top: floatingCardPosition.top,
-                width: floatingCardPosition.width,
-                height: floatingCardPosition.height,
+                width: floatingCardPosition.naturalWidth,
+                height: floatingCardPosition.naturalHeight,
+                transform: `scale(${floatingCardPosition.scaleX}, ${floatingCardPosition.scaleY})`,
+                transformOrigin: "top left",
               }}
             >
               <RoutineCardFrame
