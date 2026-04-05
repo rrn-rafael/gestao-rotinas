@@ -245,9 +245,7 @@ export default function RoutineMap() {
         {gridMode ? (
           <div
             ref={gridViewportRef}
-            className={`relative h-full overflow-auto px-4 pb-4 pt-20 ${
-              hasActiveActionMenu ? "z-50" : "z-10"
-            }`}
+            className="relative z-10 h-full overflow-auto px-4 pb-4 pt-20"
             onClick={handleClearSelection}
           >
             <RoutineCardGrid
@@ -261,17 +259,11 @@ export default function RoutineMap() {
             />
           </div>
         ) : (
-          <div
-            className={`relative h-full ${
-              hasActiveActionMenu ? "z-50" : "z-10"
-            }`}
-            onClick={handleClearSelection}
-          >
+          <div className="relative z-10 h-full" onClick={handleClearSelection}>
             <RoutineMapControls
               onZoomOut={() => zoomByStep(-BUTTON_ZOOM_STEP)}
               onZoomIn={() => zoomByStep(BUTTON_ZOOM_STEP)}
               onFitView={resetView}
-              dimmed={hasActiveActionMenu}
             />
 
             <RoutineMapViewport
@@ -292,7 +284,6 @@ export default function RoutineMap() {
                 cardRects={cardRects}
                 selectedId={presentedSelectedId}
                 focusSets={focusSets}
-                dimmed={hasActiveActionMenu}
               />
 
               <div
@@ -300,18 +291,6 @@ export default function RoutineMap() {
                 className="absolute inset-0 z-10"
                 style={{ width: layout.width, height: layout.height }}
               >
-                {hasActiveActionMenu ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setActiveActionMenuCardId(null);
-                    }}
-                    className="absolute inset-0 z-20 bg-slate-950/12"
-                    aria-label="Fechar menu de acoes"
-                  />
-                ) : null}
-
                 {layout.cards.map((item) => {
                   const isMenuCard = activeActionMenuCardId === item.id;
                   const relation = hasActiveActionMenu

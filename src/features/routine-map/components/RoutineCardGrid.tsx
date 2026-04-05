@@ -42,20 +42,7 @@ export function RoutineCardGrid({
   }
 
   return (
-    <div className="relative">
-      {activeActionMenuCardId ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onSetActiveActionMenuCardId(null);
-          }}
-          className="absolute inset-0 z-20 bg-slate-950/12"
-          aria-label="Fechar menu de acoes"
-        />
-      ) : null}
-
-      <div className="relative grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+    <div className="relative grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         {cards.map((card) => {
           const hasActiveActionMenu = activeActionMenuCardId !== null;
           const isMenuCard = activeActionMenuCardId === card.id;
@@ -86,7 +73,6 @@ export function RoutineCardGrid({
             />
           );
         })}
-      </div>
     </div>
   );
 }

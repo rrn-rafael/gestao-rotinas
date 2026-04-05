@@ -44,6 +44,13 @@ type ActionMenuPosition = {
   placement: ActionMenuPlacement;
 };
 
+type FloatingCardPosition = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 function getMenuBoundaryRect(boundaryElement: HTMLElement | null) {
   if (boundaryElement) {
     return boundaryElement.getBoundingClientRect();
@@ -330,6 +337,162 @@ function RoutineCardActionMenu({
   );
 }
 
+function RoutineCardFrame({
+  item,
+  opacity,
+  isRunning,
+  isCompleted,
+  runnerColor,
+  outerShadow,
+  insetHighlight,
+  borderColor,
+  showActionButton,
+  isActionMenuOpen,
+  onToggleSelect,
+  onToggleActionMenu,
+  buttonRef,
+  actionButtonRef,
+}: {
+  item: PositionedRoutineCard;
+  opacity: number;
+  isRunning: boolean;
+  isCompleted: boolean;
+  runnerColor: string;
+  outerShadow: string;
+  insetHighlight: string;
+  borderColor: string;
+  showActionButton: boolean;
+  isActionMenuOpen: boolean;
+  onToggleSelect: () => void;
+  onToggleActionMenu: () => void;
+  buttonRef?: ((node: HTMLButtonElement | null) => void) | undefined;
+  actionButtonRef?: ((node: HTMLButtonElement | null) => void) | undefined;
+}) {
+  return (
+    <>
+      <div
+        className="relative isolate h-full w-full overflow-hidden rounded-[16px] bg-white transition-all duration-200"
+        style={{
+          border: `1px solid ${borderColor}`,
+          boxShadow: `${outerShadow}, ${insetHighlight}`,
+        }}
+      >
+        {isRunning ? (
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <rect
+              className="routine-card-runner"
+              x="1"
+              y="1"
+              width="98"
+              height="98"
+              rx="15.4"
+              ry="15.4"
+              pathLength="100"
+              fill="none"
+              stroke={`rgb(${runnerColor})`}
+              vectorEffect="non-scaling-stroke"
+              style={{ ["--runner-color" as string]: runnerColor }}
+            />
+          </svg>
+        ) : null}
+
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleSelect();
+          }}
+          className="relative z-10 h-full w-full bg-transparent px-3 py-2 text-left transition-all duration-200"
+        >
+          <div className="flex h-full flex-col gap-1.5" style={{ opacity }}>
+            <div className="flex items-center gap-2">
+              <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
+                {item.tool}
+              </div>
+              <div className="min-w-0 flex-1 truncate whitespace-nowrap pr-7 text-[13px] font-semibold leading-5 tracking-[-0.01em] text-neutral-950">
+                {item.name}
+              </div>
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <div
+                className={`mt-0.5 h-8 w-1.5 shrink-0 rounded-full ${getStatusAccent(item.status, item.color)}`}
+              />
+
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-semibold leading-none text-neutral-950">
+                  {item.status}
+                </div>
+                <div className="mt-0.5 truncate text-[10px] leading-none text-neutral-500">
+                  {item.detail}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden">
+                <div
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPresenceDot(item.ownerPresence)}`}
+                />
+                <div className="truncate text-[10px] font-medium text-neutral-700">
+                  {item.owner}
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-1 text-[10px]">
+                <span className="text-neutral-400">
+                  {isCompleted ? "Conclusao" : "EST"}
+                </span>
+                <span className="font-semibold text-neutral-900">
+                  {isCompleted ? item.completedAt : item.forecast}
+                </span>
+                {!isCompleted && item.variance ? (
+                  <span
+                    className={`font-semibold ${getVarianceClass(item.varianceTone)}`}
+                  >
+                    {item.variance}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="absolute right-3 top-[8px] z-[60] flex h-5 items-center">
+        {showActionButton ? (
+          <div className="relative">
+            <button
+              ref={actionButtonRef}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleActionMenu();
+              }}
+              className="flex h-5 w-5 items-center justify-center rounded-[7px] bg-slate-100/90 text-[12px] leading-none text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition hover:bg-white hover:text-slate-800"
+              aria-label="Abrir acoes da rotina"
+              aria-haspopup="menu"
+              aria-expanded={isActionMenuOpen}
+            >
+              <span className="-translate-y-[1px]">...</span>
+            </button>
+          </div>
+        ) : (
+          <div className="pointer-events-none flex h-5 w-5 items-center justify-center text-neutral-400">
+            <CardIconGlyph type={item.icon} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function RoutineCardNode({
   item,
   relation,
@@ -344,7 +507,11 @@ export function RoutineCardNode({
   onToggleSelect,
 }: RoutineCardNodeProps) {
   const [hovered, setHovered] = useState(false);
-  const actionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const inlineActionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const floatingActionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const cardVisualRef = useRef<HTMLDivElement | null>(null);
+  const [floatingCardPosition, setFloatingCardPosition] =
+    useState<FloatingCardPosition | null>(null);
   const menuOpen = activeActionMenuCardId === item.id;
   const isSelected = forceHighlighted || relation === "selected";
   const isRelated = !isSelected && (relation === "upstream" || relation === "downstream");
@@ -354,8 +521,7 @@ export function RoutineCardNode({
   const isCanvasMode = layoutMode === "canvas";
   const elevated = hovered || menuOpen;
   const showActionButton = !interactionLocked && (hovered || menuOpen);
-  const menuContextActive = activeActionMenuCardId !== null;
-  const contentOpacity = menuContextActive && !menuOpen ? Math.min(opacity, 0.68) : opacity;
+  const contentOpacity = opacity;
   const outerShadow = isSelected
     ? "0 16px 34px rgba(15,23,42,0.12)"
     : elevated
@@ -405,6 +571,53 @@ export function RoutineCardNode({
     },
   ];
 
+  useLayoutEffect(() => {
+    if (!menuOpen) {
+      setFloatingCardPosition(null);
+      return;
+    }
+
+    let frameId = 0;
+
+    const updatePosition = () => {
+      const visualElement = cardVisualRef.current;
+
+      if (!visualElement) {
+        frameId = window.requestAnimationFrame(updatePosition);
+        return;
+      }
+
+      const rect = visualElement.getBoundingClientRect();
+
+      setFloatingCardPosition((currentPosition) => {
+        if (
+          currentPosition &&
+          currentPosition.left === rect.left &&
+          currentPosition.top === rect.top &&
+          currentPosition.width === rect.width &&
+          currentPosition.height === rect.height
+        ) {
+          return currentPosition;
+        }
+
+        return {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+
+      frameId = window.requestAnimationFrame(updatePosition);
+    };
+
+    frameId = window.requestAnimationFrame(updatePosition);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [menuOpen]);
+
   useEffect(() => {
     if (!menuOpen) {
       return;
@@ -435,6 +648,10 @@ export function RoutineCardNode({
     }
   }, [activeActionMenuCardId, item.id]);
 
+  const hideInlineCard = menuOpen && floatingCardPosition !== null;
+  const menuAnchorRef =
+    menuOpen && floatingCardPosition ? floatingActionButtonRef : inlineActionButtonRef;
+
   return (
     <div
       onPointerEnter={() => {
@@ -449,10 +666,11 @@ export function RoutineCardNode({
         top: isCanvasMode ? item.y : undefined,
         width: isCanvasMode ? CARD_WIDTH : "100%",
         height: CARD_HEIGHT,
-        zIndex: menuOpen ? 40 : elevated ? 10 : undefined,
+        zIndex: elevated ? 10 : undefined,
       }}
     >
       <div
+        ref={cardVisualRef}
         className="relative h-full w-full transition-all duration-200"
         style={{
           transform: isSelected
@@ -460,140 +678,85 @@ export function RoutineCardNode({
             : elevated
               ? "translateY(-2px)"
               : "translateY(0px)",
+          visibility: hideInlineCard ? "hidden" : undefined,
         }}
       >
-        <div
-          className="relative isolate h-full w-full overflow-hidden rounded-[16px] bg-white transition-all duration-200"
-          style={{
-            border: `1px solid ${borderColor}`,
-            boxShadow: `${outerShadow}, ${insetHighlight}`,
+        <RoutineCardFrame
+          item={item}
+          opacity={contentOpacity}
+          isRunning={isRunning}
+          isCompleted={isCompleted}
+          runnerColor={runnerColor}
+          outerShadow={outerShadow}
+          insetHighlight={insetHighlight}
+          borderColor={borderColor}
+          showActionButton={showActionButton}
+          isActionMenuOpen={menuOpen}
+          buttonRef={buttonRef}
+          actionButtonRef={
+            hideInlineCard
+              ? undefined
+              : (node) => {
+                  inlineActionButtonRef.current = node;
+                }
+          }
+          onToggleSelect={() => {
+            if (interactionLocked) {
+              return;
+            }
+
+            onToggleSelect(item.id);
           }}
-        >
-          {isRunning ? (
-            <svg
-              className="pointer-events-none absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <rect
-                className="routine-card-runner"
-                x="1"
-                y="1"
-                width="98"
-                height="98"
-                rx="15.4"
-                ry="15.4"
-                pathLength="100"
-                fill="none"
-                stroke={`rgb(${runnerColor})`}
-                vectorEffect="non-scaling-stroke"
-                style={{ ["--runner-color" as string]: runnerColor }}
-              />
-            </svg>
-          ) : null}
-
-          <button
-            ref={buttonRef}
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-
-              if (interactionLocked) {
-                return;
-              }
-
-              onToggleSelect(item.id);
-            }}
-            className="relative z-10 h-full w-full bg-transparent px-3 py-2 text-left transition-all duration-200"
-          >
-            <div
-              className="flex h-full flex-col gap-1.5"
-              style={{ opacity: contentOpacity }}
-            >
-              <div className="flex items-center gap-2">
-                <div className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
-                  {item.tool}
-                </div>
-                <div className="min-w-0 flex-1 truncate whitespace-nowrap pr-7 text-[13px] font-semibold leading-5 tracking-[-0.01em] text-neutral-950">
-                  {item.name}
-                </div>
-              </div>
-
-              <div className="mt-0.5 flex items-center justify-between gap-2">
-                <div
-                  className={`mt-0.5 h-8 w-1.5 shrink-0 rounded-full ${getStatusAccent(item.status, item.color)}`}
-                />
-
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold leading-none text-neutral-950">
-                    {item.status}
-                  </div>
-                  <div className="mt-0.5 truncate text-[10px] leading-none text-neutral-500">
-                    {item.detail}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-0.5 flex items-center justify-between gap-2">
-                <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden">
-                  <div
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPresenceDot(item.ownerPresence)}`}
-                  />
-                  <div className="truncate text-[10px] font-medium text-neutral-700">
-                    {item.owner}
-                  </div>
-                </div>
-
-                <div className="shrink-0 flex items-center gap-1 text-[10px]">
-                  <span className="text-neutral-400">
-                    {isCompleted ? "Conclusao" : "EST"}
-                  </span>
-                  <span className="font-semibold text-neutral-900">
-                    {isCompleted ? item.completedAt : item.forecast}
-                  </span>
-                  {!isCompleted && item.variance ? (
-                    <span
-                      className={`font-semibold ${getVarianceClass(item.varianceTone)}`}
-                    >
-                      {item.variance}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        <div className="absolute right-3 top-[8px] z-[60] flex h-5 items-center">
-          {showActionButton ? (
-            <div className="relative">
-              <button
-                ref={actionButtonRef}
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSetActiveActionMenuCardId(menuOpen ? null : item.id);
-                }}
-                className="flex h-5 w-5 items-center justify-center rounded-[7px] bg-slate-100/90 text-[12px] leading-none text-slate-500 shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition hover:bg-white hover:text-slate-800"
-                aria-label="Abrir acoes da rotina"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-              >
-                <span className="-translate-y-[1px]">...</span>
-              </button>
-            </div>
-          ) : (
-            <div className="pointer-events-none flex h-5 w-5 items-center justify-center text-neutral-400">
-              <CardIconGlyph type={item.icon} />
-            </div>
-          )}
-        </div>
+          onToggleActionMenu={() => {
+            onSetActiveActionMenuCardId(menuOpen ? null : item.id);
+          }}
+        />
       </div>
+
+      {menuOpen && floatingCardPosition
+        ? createPortal(
+            <div
+              className="fixed z-[70]"
+              style={{
+                left: floatingCardPosition.left,
+                top: floatingCardPosition.top,
+                width: floatingCardPosition.width,
+                height: floatingCardPosition.height,
+              }}
+            >
+              <RoutineCardFrame
+                item={item}
+                opacity={contentOpacity}
+                isRunning={isRunning}
+                isCompleted={isCompleted}
+                runnerColor={runnerColor}
+                outerShadow={outerShadow}
+                insetHighlight={insetHighlight}
+                borderColor={borderColor}
+                showActionButton={true}
+                isActionMenuOpen={true}
+                actionButtonRef={(node) => {
+                  floatingActionButtonRef.current = node;
+                }}
+                onToggleSelect={() => {
+                  if (interactionLocked) {
+                    return;
+                  }
+
+                  onToggleSelect(item.id);
+                }}
+                onToggleActionMenu={() => {
+                  onSetActiveActionMenuCardId(null);
+                }}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
 
       <RoutineCardActionMenu
         open={menuOpen}
-        anchorRef={actionButtonRef}
+        anchorRef={menuAnchorRef}
         boundaryRef={menuBoundaryRef}
         actionItems={actionItems}
         onClose={() => {
