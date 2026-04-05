@@ -14,11 +14,11 @@
   --routine-ui-surface: rgba(255, 255, 255, 0.96);
   --routine-ui-border: rgba(148, 163, 184, 0.28);
   --routine-ui-shadow:
-    0 10px 24px rgba(15, 23, 42, 0.1),
-    0 2px 6px rgba(15, 23, 42, 0.06);
+    0 3px 8px rgba(15, 23, 42, 0.16),
+    0 1px 2px rgba(15, 23, 42, 0.08);
   --routine-ui-shadow-hover:
-    0 16px 30px rgba(15, 23, 42, 0.14),
-    0 5px 12px rgba(15, 23, 42, 0.08);
+    0 4px 10px rgba(15, 23, 42, 0.18),
+    0 1px 3px rgba(15, 23, 42, 0.1);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

@@ -58,7 +58,7 @@ export function RoutineMapControls({
 }: RoutineMapControlsProps) {
   return (
     <div
-      className="absolute bottom-5 right-5 z-30 overflow-hidden rounded-[18px] border border-slate-300 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.1),0_2px_6px_rgba(15,23,42,0.06)]"
+      className="absolute bottom-5 right-5 z-30 overflow-hidden rounded-[18px] border border-slate-300 bg-white shadow-[0_3px_8px_rgba(15,23,42,0.16),0_1px_2px_rgba(15,23,42,0.08)]"
       onClick={(event) => {
         event.stopPropagation();
       }}
