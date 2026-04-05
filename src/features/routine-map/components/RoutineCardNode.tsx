@@ -52,6 +52,16 @@ type FloatingCardPosition = {
   scaleY: number;
 };
 
+const CONTEXT_MENU_OPEN_BORDER = "rgba(226, 232, 240, 0.96)";
+const CONTEXT_MENU_OPEN_CARD_SHADOW =
+  "0 18px 36px rgba(15,23,42,0.14), 0 6px 16px rgba(15,23,42,0.08)";
+const CONTEXT_MENU_OPEN_MENU_SHADOW =
+  "0 18px 36px rgba(15,23,42,0.14), 0 8px 18px rgba(15,23,42,0.1)";
+const CONTEXT_MENU_OPEN_INSET =
+  "inset 0 0 0 1px rgba(226,232,240,0.96)";
+const DEFAULT_MENU_GAP = 6;
+const TOP_MENU_GAP = 12;
+
 function getMenuBoundaryRect(boundaryElement: HTMLElement | null) {
   if (boundaryElement) {
     return boundaryElement.getBoundingClientRect();
@@ -228,7 +238,6 @@ function RoutineCardActionMenu({
         return;
       }
 
-      const gap = 6;
       const padding = 8;
       const anchorRect = anchorElement.getBoundingClientRect();
       const menuRect = menuElement.getBoundingClientRect();
@@ -243,8 +252,8 @@ function RoutineCardActionMenu({
         minLeft,
         boundaryRect.right - menuRect.width - padding,
       );
-      const topPlacementTop = anchorRect.top - menuRect.height - gap;
-      const bottomPlacementTop = anchorRect.bottom + gap;
+      const topPlacementTop = anchorRect.top - menuRect.height - TOP_MENU_GAP;
+      const bottomPlacementTop = anchorRect.bottom + DEFAULT_MENU_GAP;
       let placement: ActionMenuPlacement =
         topPlacementTop >= minTop ? "top-end" : "bottom-end";
       let top =
@@ -309,7 +318,11 @@ function RoutineCardActionMenu({
     <div
       ref={menuRef}
       className="fixed z-[80] w-max min-w-[118px] overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.14),0_2px_4px_rgba(15,23,42,0.08)]"
-      style={menuStyle}
+      style={{
+        ...menuStyle,
+        borderColor: CONTEXT_MENU_OPEN_BORDER,
+        boxShadow: CONTEXT_MENU_OPEN_MENU_SHADOW,
+      }}
       role="menu"
       aria-label="Acoes da rotina"
     >
@@ -528,21 +541,21 @@ export function RoutineCardNode({
   const outerShadow = isBranchSelected
     ? "0 16px 34px rgba(15,23,42,0.12)"
     : menuOpen
-      ? "0 18px 36px rgba(15,23,42,0.14)"
+      ? CONTEXT_MENU_OPEN_CARD_SHADOW
     : elevated
       ? "0 14px 30px rgba(15,23,42,0.08)"
       : "0 10px 24px rgba(15,23,42,0.05)";
   const insetHighlight = isBranchSelected
     ? "inset 0 0 0 2px rgba(253,230,138,0.95)"
     : menuOpen
-      ? "inset 0 0 0 1px rgba(226,232,240,0.96)"
+      ? CONTEXT_MENU_OPEN_INSET
     : isRelated
       ? "inset 0 0 0 1px rgba(254,243,199,0.95)"
       : "inset 0 0 0 1px rgba(255,255,255,0.72)";
   const borderColor = isBranchSelected
     ? "rgba(253, 230, 138, 0.95)"
     : menuOpen
-      ? "rgba(226, 232, 240, 0.96)"
+      ? CONTEXT_MENU_OPEN_BORDER
     : hovered
       ? "rgba(229, 231, 235, 0.95)"
       : "rgba(255, 255, 255, 0.72)";
