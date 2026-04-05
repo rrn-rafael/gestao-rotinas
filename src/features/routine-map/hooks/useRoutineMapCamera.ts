@@ -36,6 +36,8 @@ type TouchGestureState = {
   originView: ViewState;
 };
 
+const HOME_VIEW_PADDING = 24;
+
 type UseRoutineMapCameraParams = {
   rootRef: RefObject<HTMLDivElement>;
   viewportRef: RefObject<HTMLDivElement>;
@@ -71,24 +73,56 @@ export function useRoutineMapCamera({
     setView(nextView);
   }, []);
 
-  const centerHomeView = useCallback(() => {
+  const buildHomeView = useCallback(() => {
     const viewportElement = viewportRef.current;
 
     if (!viewportElement) {
-      return;
+      return null;
     }
 
     const viewportRect = viewportElement.getBoundingClientRect();
-    const nextScale = initialView.scale;
-    const nextView = {
+    const availableWidth = Math.max(
+      1,
+      viewportRect.width - HOME_VIEW_PADDING * 2,
+    );
+    const availableHeight = Math.max(
+      1,
+      viewportRect.height - HOME_VIEW_PADDING * 2,
+    );
+    const fitScale = Math.min(
+      availableWidth / Math.max(worldWidth, 1),
+      availableHeight / Math.max(worldHeight, 1),
+    );
+    const nextScale = clamp(
+      Math.min(initialView.scale, fitScale),
+      minScale,
+      maxScale,
+    );
+
+    return {
       scale: nextScale,
       x: quantize((viewportRect.width - worldWidth * nextScale) / 2),
       y: quantize((viewportRect.height - worldHeight * nextScale) / 2),
     };
+  }, [
+    initialView.scale,
+    maxScale,
+    minScale,
+    viewportRef,
+    worldHeight,
+    worldWidth,
+  ]);
+
+  const centerHomeView = useCallback(() => {
+    const nextView = buildHomeView();
+
+    if (!nextView) {
+      return;
+    }
 
     homeViewRef.current = nextView;
     commitView(nextView);
-  }, [commitView, initialView.scale, viewportRef, worldHeight, worldWidth]);
+  }, [buildHomeView, commitView]);
 
   const isEventInsideViewport = useCallback(
     (target: EventTarget | null) => {
@@ -165,8 +199,16 @@ export function useRoutineMapCamera({
   );
 
   const resetView = useCallback(() => {
+    const nextView = buildHomeView();
+
+    if (nextView) {
+      homeViewRef.current = nextView;
+      commitView(nextView);
+      return;
+    }
+
     commitView(homeViewRef.current);
-  }, [commitView]);
+  }, [buildHomeView, commitView]);
 
   const endPan = useCallback((pointerId?: number) => {
     if (
