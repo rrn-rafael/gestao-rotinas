@@ -9,15 +9,14 @@ import { RoutineMapHeader } from "./components/RoutineMapHeader";
 import { RoutineMapViewport } from "./components/RoutineMapViewport";
 import { useRoutineConnectorLayout } from "./hooks/useRoutineConnectorLayout";
 import { useRoutineMapCamera } from "./hooks/useRoutineMapCamera";
-import { clamp } from "./model/geometry";
 import {
   DEFAULT_SELECTED_CARD_ID,
-  MAP_HORIZONTAL_PADDING,
+  INITIAL_VIEW,
   MAX_SCALE,
   MIN_SCALE,
-  TIMELINE_COLUMN_MAX_WIDTH,
+  TIMELINE_FILTER_RESERVE_FALLBACK,
+  TIMELINE_FILTER_RESERVE_GAP,
   TIMELINE_COLUMN_MIN_WIDTH,
-  TIMELINE_COLUMN_ZOOM_STEP,
   TIMELINE_HEADER_HEIGHT,
   TIMELINE_HOME_VIEW_PADDING,
 } from "./model/config";
@@ -38,21 +37,9 @@ import {
   buildRoutineMapLayout,
   getTimelineBucketIdForDate,
 } from "./model/layout";
-import type { RoutineFilters, ViewState } from "./model/types";
+import type { RoutineFilters } from "./model/types";
 
 const routineGraphIndexes = buildGraphIndexes(routineLinks);
-
-type PendingViewIntent =
-  | {
-      kind: "anchor";
-      viewportX: number;
-      viewportY: number;
-      contentRatioX: number;
-      verticalRatioY: number;
-    }
-  | {
-      kind: "fit";
-    };
 
 function FilterButtonIcon() {
   return (
@@ -74,11 +61,12 @@ function FilterButtonIcon() {
 }
 
 export default function RoutineMap() {
+  const BUTTON_ZOOM_STEP = 0.15;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const pendingViewIntentRef = useRef<PendingViewIntent | null>(null);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(
     DEFAULT_SELECTED_CARD_ID,
@@ -90,13 +78,11 @@ export default function RoutineMap() {
     DEFAULT_ROUTINE_FILTERS,
   );
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-  const [columnWidth, setColumnWidth] = useState(TIMELINE_COLUMN_MIN_WIDTH);
   const [currentTime, setCurrentTime] = useState(() => new Date());
-
-  const referenceLayout = useMemo(
-    () => buildRoutineMapLayout(routineCards, TIMELINE_COLUMN_MIN_WIDTH),
-    [],
+  const [filterReservedWidth, setFilterReservedWidth] = useState(
+    TIMELINE_FILTER_RESERVE_FALLBACK,
   );
+
   const filterOptions = useMemo(
     () => buildRoutineFilterOptions(routineCards),
     [],
@@ -110,8 +96,8 @@ export default function RoutineMap() {
     [filteredCards],
   );
   const layout = useMemo(
-    () => buildRoutineMapLayout(filteredCards, columnWidth),
-    [columnWidth, filteredCards],
+    () => buildRoutineMapLayout(filteredCards, TIMELINE_COLUMN_MIN_WIDTH),
+    [filteredCards],
   );
   const activeFilterCount = useMemo(
     () => getActiveRoutineFilterCount(filters),
@@ -155,36 +141,35 @@ export default function RoutineMap() {
     };
   }, []);
 
-  function buildAnchoredViewIntent(
-    nextColumnWidth: number,
-    viewportX: number,
-    viewportY: number,
-    view: ViewState,
-  ) {
-    if (nextColumnWidth === columnWidth) {
-      return null;
+  useLayoutEffect(() => {
+    const filterButtonElement = filterButtonRef.current;
+
+    if (!filterButtonElement) {
+      return;
     }
 
-    const contentWidth = Math.max(1, layout.width - MAP_HORIZONTAL_PADDING * 2);
-    const anchorWorldX = (viewportX - view.x) / Math.max(view.scale, 0.001);
-    const anchorWorldY = (viewportY - view.y) / Math.max(view.scale, 0.001);
+    const updateReservedWidth = () => {
+      const nextWidth = Math.ceil(
+        16 + filterButtonElement.getBoundingClientRect().width + TIMELINE_FILTER_RESERVE_GAP,
+      );
 
-    return {
-      kind: "anchor" as const,
-      viewportX,
-      viewportY,
-      contentRatioX: clamp(
-        (anchorWorldX - MAP_HORIZONTAL_PADDING) / contentWidth,
-        0,
-        1,
-      ),
-      verticalRatioY: clamp(
-        anchorWorldY / Math.max(layout.height, 1),
-        0,
-        1,
-      ),
+      setFilterReservedWidth((currentWidth) =>
+        currentWidth === nextWidth ? currentWidth : nextWidth,
+      );
     };
-  }
+
+    updateReservedWidth();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateReservedWidth();
+    });
+
+    resizeObserver.observe(filterButtonElement);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [activeFilterCount]);
 
   const {
     view,
@@ -192,38 +177,17 @@ export default function RoutineMap() {
     isPanning,
     cursor,
     resetView,
-    setViewWithinBounds,
+    zoomByStep,
     viewportHandlers,
   } = useRoutineMapCamera({
     rootRef,
     viewportRef,
     worldWidth: layout.width,
     worldHeight: layout.height,
-    fitWorldWidth: referenceLayout.width,
-    fitWorldHeight: referenceLayout.height,
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE,
     fitPadding: TIMELINE_HOME_VIEW_PADDING,
-    onZoomIntent: (intent) => {
-      const nextColumnWidth = clamp(
-        columnWidth + intent.delta * TIMELINE_COLUMN_ZOOM_STEP,
-        TIMELINE_COLUMN_MIN_WIDTH,
-        TIMELINE_COLUMN_MAX_WIDTH,
-      );
-      const nextIntent = buildAnchoredViewIntent(
-        nextColumnWidth,
-        intent.viewportX,
-        intent.viewportY,
-        view,
-      );
-
-      if (!nextIntent) {
-        return;
-      }
-
-      pendingViewIntentRef.current = nextIntent;
-      setColumnWidth(nextColumnWidth);
-    },
+    initialView: INITIAL_VIEW,
   });
 
   const { cardRects } = useRoutineConnectorLayout({
@@ -233,32 +197,6 @@ export default function RoutineMap() {
     view,
     selectedId: presentedSelectedId,
   });
-
-  useLayoutEffect(() => {
-    const pendingViewIntent = pendingViewIntentRef.current;
-
-    if (!pendingViewIntent) {
-      return;
-    }
-
-    pendingViewIntentRef.current = null;
-
-    if (pendingViewIntent.kind === "fit") {
-      resetView();
-      return;
-    }
-
-    const nextContentWidth = Math.max(1, layout.width - MAP_HORIZONTAL_PADDING * 2);
-    const nextWorldX =
-      MAP_HORIZONTAL_PADDING + pendingViewIntent.contentRatioX * nextContentWidth;
-    const nextWorldY = pendingViewIntent.verticalRatioY * layout.height;
-
-    setViewWithinBounds({
-      scale: view.scale,
-      x: pendingViewIntent.viewportX - nextWorldX * view.scale,
-      y: pendingViewIntent.viewportY - nextWorldY * view.scale,
-    });
-  }, [layout.height, layout.width, resetView, setViewWithinBounds, view.scale]);
 
   function handleToggleSelect(cardId: string) {
     setSelectedId((currentSelectedId) =>
@@ -293,44 +231,6 @@ export default function RoutineMap() {
     setIsFilterPanelOpen((currentState) => !currentState);
   }
 
-  function handleBucketZoom(delta: number) {
-    const viewportElement = viewportRef.current;
-
-    if (!viewportElement) {
-      return;
-    }
-
-    const viewportRect = viewportElement.getBoundingClientRect();
-    const nextColumnWidth = clamp(
-      columnWidth + delta * TIMELINE_COLUMN_ZOOM_STEP,
-      TIMELINE_COLUMN_MIN_WIDTH,
-      TIMELINE_COLUMN_MAX_WIDTH,
-    );
-    const nextIntent = buildAnchoredViewIntent(
-      nextColumnWidth,
-      viewportRect.width / 2,
-      viewportRect.height / 2,
-      view,
-    );
-
-    if (!nextIntent) {
-      return;
-    }
-
-    pendingViewIntentRef.current = nextIntent;
-    setColumnWidth(nextColumnWidth);
-  }
-
-  function handleFitView() {
-    if (columnWidth === TIMELINE_COLUMN_MIN_WIDTH) {
-      resetView();
-      return;
-    }
-
-    pendingViewIntentRef.current = { kind: "fit" };
-    setColumnWidth(TIMELINE_COLUMN_MIN_WIDTH);
-  }
-
   return (
     <div
       ref={rootRef}
@@ -353,6 +253,7 @@ export default function RoutineMap() {
 
         <div className="pointer-events-none absolute left-4 top-4 z-30 flex items-center gap-2">
           <button
+            ref={filterButtonRef}
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -381,13 +282,17 @@ export default function RoutineMap() {
           }}
         />
 
-        <div className="absolute inset-x-0 top-0 z-20" style={{ height: TIMELINE_HEADER_HEIGHT }}>
+        <div
+          className="absolute inset-x-0 top-0 z-20"
+          style={{ height: TIMELINE_HEADER_HEIGHT }}
+        >
           <RoutineMapHeader
             buckets={layout.buckets}
             view={view}
             currentBucketId={currentBucketId}
             visibleCount={filteredCards.length}
             totalCount={routineCards.length}
+            reservedLeftWidth={filterReservedWidth}
           />
         </div>
 
@@ -397,9 +302,9 @@ export default function RoutineMap() {
           onClick={handleClearSelection}
         >
           <RoutineMapControls
-            onZoomOut={() => handleBucketZoom(-1)}
-            onZoomIn={() => handleBucketZoom(1)}
-            onFitView={handleFitView}
+            onZoomOut={() => zoomByStep(-BUTTON_ZOOM_STEP)}
+            onZoomIn={() => zoomByStep(BUTTON_ZOOM_STEP)}
+            onFitView={resetView}
           />
 
           <RoutineMapViewport
@@ -445,8 +350,8 @@ export default function RoutineMap() {
                     }}
                   >
                     <div className="absolute inset-0 bg-slate-950/[0.05]" />
-                    <div className="absolute inset-y-0 left-0 w-px bg-slate-300/85" />
-                    <div className="absolute inset-y-0 right-0 w-px bg-slate-300/85" />
+                    <div className="absolute inset-y-0 left-0 w-px bg-slate-400/85" />
+                    <div className="absolute inset-y-0 right-0 w-px bg-slate-400/85" />
                   </div>
                 ) : null}
               </>

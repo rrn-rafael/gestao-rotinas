@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
   PointerEvent as ReactPointerEvent,
   RefObject,
@@ -15,10 +21,19 @@ type PanState = {
   originY: number;
 };
 
-type ZoomIntent = {
-  delta: number;
-  viewportX: number;
-  viewportY: number;
+type TouchPoint = {
+  clientX: number;
+  clientY: number;
+};
+
+type TouchGestureState = {
+  pointerIds: [number, number];
+  initialDistance: number;
+  initialMidpoint: {
+    x: number;
+    y: number;
+  };
+  originView: ViewState;
 };
 
 type UseRoutineMapCameraParams = {
@@ -26,12 +41,10 @@ type UseRoutineMapCameraParams = {
   viewportRef: RefObject<HTMLDivElement | null>;
   worldWidth: number;
   worldHeight: number;
-  fitWorldWidth: number;
-  fitWorldHeight: number;
   minScale: number;
   maxScale: number;
   fitPadding: number;
-  onZoomIntent?: (intent: ZoomIntent) => void;
+  initialView: ViewState;
 };
 
 const PAN_PADDING = 40;
@@ -51,48 +64,21 @@ export function useRoutineMapCamera({
   viewportRef,
   worldWidth,
   worldHeight,
-  fitWorldWidth,
-  fitWorldHeight,
   minScale,
   maxScale,
   fitPadding,
-  onZoomIntent,
+  initialView,
 }: UseRoutineMapCameraParams) {
-  const initializedRef = useRef(false);
+  const viewRef = useRef<ViewState>(initialView);
+  const homeViewRef = useRef<ViewState>(initialView);
+  const centeredRef = useRef(false);
   const panStateRef = useRef<PanState | null>(null);
-  const viewRef = useRef<ViewState>({ x: 0, y: 0, scale: 1 });
+  const touchPointsRef = useRef<Map<number, TouchPoint>>(new Map());
+  const touchGestureRef = useRef<TouchGestureState | null>(null);
 
   const [spacePressed, setSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [view, setView] = useState<ViewState>(viewRef.current);
-
-  const buildDisplayScale = useCallback(() => {
-    const viewportElement = viewportRef.current;
-
-    if (!viewportElement) {
-      return 1;
-    }
-
-    const viewportRect = viewportElement.getBoundingClientRect();
-    const availableWidth = Math.max(1, viewportRect.width - fitPadding * 2);
-    const availableHeight = Math.max(1, viewportRect.height - fitPadding * 2);
-
-    return clamp(
-      Math.min(
-        availableWidth / Math.max(fitWorldWidth, 1),
-        availableHeight / Math.max(fitWorldHeight, 1),
-      ),
-      minScale,
-      maxScale,
-    );
-  }, [
-    fitPadding,
-    fitWorldHeight,
-    fitWorldWidth,
-    maxScale,
-    minScale,
-    viewportRef,
-  ]);
 
   const constrainView = useCallback(
     (candidate: ViewState) => {
@@ -103,12 +89,11 @@ export function useRoutineMapCamera({
       }
 
       const viewportRect = viewportElement.getBoundingClientRect();
-      const displayScale = candidate.scale;
-      const contentWidth = worldWidth * displayScale;
-      const contentHeight = worldHeight * displayScale;
+      const contentWidth = worldWidth * candidate.scale;
+      const contentHeight = worldHeight * candidate.scale;
 
       return {
-        scale: displayScale,
+        scale: candidate.scale,
         x: clampAxis(candidate.x, viewportRect.width, contentWidth),
         y: clampAxis(candidate.y, viewportRect.height, contentHeight),
       };
@@ -117,27 +102,13 @@ export function useRoutineMapCamera({
   );
 
   const commitView = useCallback(
-    (candidate: ViewState) => {
-      const nextView = constrainView(candidate);
+    (nextView: ViewState) => {
+      const constrainedView = constrainView(nextView);
 
-      viewRef.current = nextView;
-      setView(nextView);
+      viewRef.current = constrainedView;
+      setView(constrainedView);
     },
     [constrainView],
-  );
-
-  const setViewWithinBounds = useCallback(
-    (nextView: ViewState | ((currentView: ViewState) => ViewState)) => {
-      const displayScale = buildDisplayScale();
-      const resolvedView =
-        typeof nextView === "function" ? nextView(viewRef.current) : nextView;
-
-      commitView({
-        ...resolvedView,
-        scale: displayScale,
-      });
-    },
-    [buildDisplayScale, commitView],
   );
 
   const buildHomeView = useCallback(() => {
@@ -148,21 +119,129 @@ export function useRoutineMapCamera({
     }
 
     const viewportRect = viewportElement.getBoundingClientRect();
-    const displayScale = buildDisplayScale();
+    const availableWidth = Math.max(1, viewportRect.width - fitPadding * 2);
+    const availableHeight = Math.max(1, viewportRect.height - fitPadding * 2);
+    const fitScale = Math.min(
+      availableWidth / Math.max(worldWidth, 1),
+      availableHeight / Math.max(worldHeight, 1),
+    );
+    const nextScale = clamp(
+      Math.min(initialView.scale, fitScale),
+      minScale,
+      maxScale,
+    );
 
     return constrainView({
-      scale: displayScale,
-      x: quantize((viewportRect.width - worldWidth * displayScale) / 2),
-      y: quantize((viewportRect.height - worldHeight * displayScale) / 2),
+      scale: nextScale,
+      x: quantize((viewportRect.width - worldWidth * nextScale) / 2),
+      y: quantize((viewportRect.height - worldHeight * nextScale) / 2),
     });
-  }, [buildDisplayScale, constrainView, viewportRef, worldHeight, worldWidth]);
+  }, [
+    constrainView,
+    fitPadding,
+    initialView.scale,
+    maxScale,
+    minScale,
+    viewportRef,
+    worldHeight,
+    worldWidth,
+  ]);
+
+  const centerHomeView = useCallback(() => {
+    const nextView = buildHomeView();
+
+    if (!nextView) {
+      return;
+    }
+
+    homeViewRef.current = nextView;
+    commitView(nextView);
+  }, [buildHomeView, commitView]);
+
+  const isEventInsideViewport = useCallback(
+    (target: EventTarget | null) => {
+      const viewportElement = viewportRef.current;
+
+      return target instanceof Node && !!viewportElement?.contains(target);
+    },
+    [viewportRef],
+  );
+
+  const toViewportPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      const viewportElement = viewportRef.current;
+
+      if (!viewportElement) {
+        return null;
+      }
+
+      const viewportRect = viewportElement.getBoundingClientRect();
+
+      return {
+        x: clientX - viewportRect.left,
+        y: clientY - viewportRect.top,
+      };
+    },
+    [viewportRef],
+  );
+
+  const zoomAtViewportPoint = useCallback(
+    (nextScale: number, viewportX: number, viewportY: number) => {
+      const clampedScale = clamp(nextScale, minScale, maxScale);
+      const worldX = (viewportX - viewRef.current.x) / viewRef.current.scale;
+      const worldY = (viewportY - viewRef.current.y) / viewRef.current.scale;
+
+      commitView({
+        scale: clampedScale,
+        x: quantize(viewportX - worldX * clampedScale),
+        y: quantize(viewportY - worldY * clampedScale),
+      });
+    },
+    [commitView, maxScale, minScale],
+  );
+
+  const zoomAtClientPoint = useCallback(
+    (nextScale: number, clientX: number, clientY: number) => {
+      const viewportPoint = toViewportPoint(clientX, clientY);
+
+      if (!viewportPoint) {
+        return;
+      }
+
+      zoomAtViewportPoint(nextScale, viewportPoint.x, viewportPoint.y);
+    },
+    [toViewportPoint, zoomAtViewportPoint],
+  );
+
+  const zoomByStep = useCallback(
+    (delta: number) => {
+      const viewportElement = viewportRef.current;
+
+      if (!viewportElement) {
+        return;
+      }
+
+      const rect = viewportElement.getBoundingClientRect();
+
+      zoomAtClientPoint(
+        viewRef.current.scale + delta,
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+    },
+    [viewportRef, zoomAtClientPoint],
+  );
 
   const resetView = useCallback(() => {
-    const homeView = buildHomeView();
+    const nextView = buildHomeView();
 
-    if (homeView) {
-      commitView(homeView);
+    if (nextView) {
+      homeViewRef.current = nextView;
+      commitView(nextView);
+      return;
     }
+
+    commitView(homeViewRef.current);
   }, [buildHomeView, commitView]);
 
   const endPan = useCallback((pointerId?: number) => {
@@ -177,24 +256,112 @@ export function useRoutineMapCamera({
     setIsPanning(false);
   }, []);
 
-  useLayoutEffect(() => {
-    const homeView = buildHomeView();
+  const buildTouchGesture = useCallback(() => {
+    const activeTouchPoints = [...touchPointsRef.current.entries()].slice(0, 2);
 
-    if (!homeView) {
+    if (activeTouchPoints.length < 2) {
+      return null;
+    }
+
+    const firstPoint = toViewportPoint(
+      activeTouchPoints[0][1].clientX,
+      activeTouchPoints[0][1].clientY,
+    );
+    const secondPoint = toViewportPoint(
+      activeTouchPoints[1][1].clientX,
+      activeTouchPoints[1][1].clientY,
+    );
+
+    if (!firstPoint || !secondPoint) {
+      return null;
+    }
+
+    const distance = Math.hypot(
+      secondPoint.x - firstPoint.x,
+      secondPoint.y - firstPoint.y,
+    );
+
+    return {
+      pointerIds: [activeTouchPoints[0][0], activeTouchPoints[1][0]],
+      initialDistance: Math.max(distance, 1),
+      initialMidpoint: {
+        x: (firstPoint.x + secondPoint.x) / 2,
+        y: (firstPoint.y + secondPoint.y) / 2,
+      },
+      originView: viewRef.current,
+    } satisfies TouchGestureState;
+  }, [toViewportPoint]);
+
+  const syncTouchGesture = useCallback(() => {
+    const touchGesture = touchGestureRef.current;
+
+    if (!touchGesture) {
       return;
     }
 
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      commitView(homeView);
+    const firstPointer = touchPointsRef.current.get(touchGesture.pointerIds[0]);
+    const secondPointer = touchPointsRef.current.get(
+      touchGesture.pointerIds[1],
+    );
+
+    if (!firstPointer || !secondPointer) {
       return;
     }
+
+    const firstPoint = toViewportPoint(
+      firstPointer.clientX,
+      firstPointer.clientY,
+    );
+    const secondPoint = toViewportPoint(
+      secondPointer.clientX,
+      secondPointer.clientY,
+    );
+
+    if (!firstPoint || !secondPoint) {
+      return;
+    }
+
+    const currentDistance = Math.max(
+      Math.hypot(secondPoint.x - firstPoint.x, secondPoint.y - firstPoint.y),
+      1,
+    );
+    const currentMidpoint = {
+      x: (firstPoint.x + secondPoint.x) / 2,
+      y: (firstPoint.y + secondPoint.y) / 2,
+    };
+    const nextScale =
+      touchGesture.originView.scale *
+      (currentDistance / touchGesture.initialDistance);
+    const clampedScale = clamp(nextScale, minScale, maxScale);
+    const worldX =
+      (touchGesture.initialMidpoint.x - touchGesture.originView.x) /
+      touchGesture.originView.scale;
+    const worldY =
+      (touchGesture.initialMidpoint.y - touchGesture.originView.y) /
+      touchGesture.originView.scale;
 
     commitView({
-      ...viewRef.current,
-      scale: homeView.scale,
+      scale: clampedScale,
+      x: quantize(currentMidpoint.x - worldX * clampedScale),
+      y: quantize(currentMidpoint.y - worldY * clampedScale),
     });
-  }, [buildHomeView, commitView, worldHeight, worldWidth]);
+  }, [commitView, maxScale, minScale, toViewportPoint]);
+
+  const clearTouchGesture = useCallback(() => {
+    touchPointsRef.current.clear();
+    touchGestureRef.current = null;
+    setIsPanning(false);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (centeredRef.current) {
+      commitView(viewRef.current);
+      return;
+    }
+
+    centeredRef.current = true;
+    centerHomeView();
+  }, [centerHomeView, commitView, worldHeight, worldWidth]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -218,6 +385,7 @@ export function useRoutineMapCamera({
     const handleWindowBlur = () => {
       setSpacePressed(false);
       endPan();
+      clearTouchGesture();
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -229,10 +397,44 @@ export function useRoutineMapCamera({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [endPan]);
+  }, [clearTouchGesture, endPan]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const nextHomeView = buildHomeView();
+
+      if (nextHomeView) {
+        homeViewRef.current = nextHomeView;
+      }
+
+      commitView(viewRef.current);
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [buildHomeView, commitView]);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "touch") {
+        touchPointsRef.current.set(event.pointerId, {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+        event.currentTarget.setPointerCapture(event.pointerId);
+
+        if (touchPointsRef.current.size >= 2) {
+          event.preventDefault();
+          touchGestureRef.current = buildTouchGesture();
+          setIsPanning(true);
+        }
+
+        return;
+      }
+
       if (!spacePressed) {
         return;
       }
@@ -248,11 +450,39 @@ export function useRoutineMapCamera({
       };
       setIsPanning(true);
     },
-    [spacePressed],
+    [buildTouchGesture, spacePressed],
   );
 
   const onPointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "touch") {
+        if (!touchPointsRef.current.has(event.pointerId)) {
+          return;
+        }
+
+        touchPointsRef.current.set(event.pointerId, {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+
+        if (touchPointsRef.current.size < 2) {
+          return;
+        }
+
+        event.preventDefault();
+
+        if (!touchGestureRef.current) {
+          touchGestureRef.current = buildTouchGesture();
+        }
+
+        if (!touchGestureRef.current) {
+          return;
+        }
+
+        syncTouchGesture();
+        return;
+      }
+
       const panState = panStateRef.current;
 
       if (!panState || panState.pointerId !== event.pointerId) {
@@ -261,59 +491,168 @@ export function useRoutineMapCamera({
 
       commitView({
         ...viewRef.current,
-        x: panState.originX + (event.clientX - panState.startX),
-        y: panState.originY + (event.clientY - panState.startY),
+        x: quantize(panState.originX + (event.clientX - panState.startX)),
+        y: quantize(panState.originY + (event.clientY - panState.startY)),
       });
     },
-    [commitView],
+    [buildTouchGesture, commitView, syncTouchGesture],
   );
 
   const onPointerUp = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "touch") {
+        touchPointsRef.current.delete(event.pointerId);
+
+        if (touchPointsRef.current.size >= 2) {
+          touchGestureRef.current = buildTouchGesture();
+          syncTouchGesture();
+        } else {
+          touchGestureRef.current = null;
+          setIsPanning(false);
+        }
+
+        return;
+      }
+
       endPan(event.pointerId);
     },
-    [endPan],
+    [buildTouchGesture, endPan, syncTouchGesture],
   );
 
-  const onPointerCancel = useCallback(() => {
-    endPan();
-  }, [endPan]);
+  const onPointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "touch") {
+        touchPointsRef.current.delete(event.pointerId);
+
+        if (touchPointsRef.current.size >= 2) {
+          touchGestureRef.current = buildTouchGesture();
+          syncTouchGesture();
+        } else {
+          touchGestureRef.current = null;
+          setIsPanning(false);
+        }
+
+        return;
+      }
+
+      endPan();
+    },
+    [buildTouchGesture, endPan, syncTouchGesture],
+  );
 
   useEffect(() => {
     const rootElement = rootRef.current;
-    const viewportElement = viewportRef.current;
 
-    if (!rootElement || !viewportElement || !onZoomIntent) {
+    if (!rootElement) {
       return;
     }
+
+    type WebkitGestureEvent = Event & {
+      scale: number;
+      clientX: number;
+      clientY: number;
+    };
+
+    let gestureOriginScale = viewRef.current.scale;
 
     const handleWheel = (event: WheelEvent) => {
       if (!(event.ctrlKey || event.metaKey)) {
         return;
       }
 
-      if (!(event.target instanceof Node) || !viewportElement.contains(event.target)) {
+      event.preventDefault();
+
+      if (!isEventInsideViewport(event.target)) {
         return;
       }
 
+      const delta = clamp(-event.deltaY * 0.01, -0.2, 0.2);
+
+      zoomAtClientPoint(
+        viewRef.current.scale + delta,
+        event.clientX,
+        event.clientY,
+      );
+    };
+
+    const handleGestureStart = (event: Event) => {
       event.preventDefault();
 
-      onZoomIntent({
-        delta: event.deltaY < 0 ? 1 : -1,
-        viewportX: event.clientX - viewportElement.getBoundingClientRect().left,
-        viewportY: event.clientY - viewportElement.getBoundingClientRect().top,
-      });
+      if (!isEventInsideViewport(event.target)) {
+        return;
+      }
+
+      gestureOriginScale = viewRef.current.scale;
+    };
+
+    const handleGestureChange = (event: Event) => {
+      event.preventDefault();
+
+      if (!isEventInsideViewport(event.target)) {
+        return;
+      }
+
+      const gestureEvent = event as WebkitGestureEvent;
+
+      zoomAtClientPoint(
+        gestureOriginScale * gestureEvent.scale,
+        gestureEvent.clientX,
+        gestureEvent.clientY,
+      );
+    };
+
+    const handleGestureEnd = (event: Event) => {
+      event.preventDefault();
     };
 
     rootElement.addEventListener("wheel", handleWheel, {
       capture: true,
       passive: false,
     });
+    rootElement.addEventListener(
+      "gesturestart",
+      handleGestureStart as EventListener,
+      {
+        capture: true,
+        passive: false,
+      },
+    );
+    rootElement.addEventListener(
+      "gesturechange",
+      handleGestureChange as EventListener,
+      {
+        capture: true,
+        passive: false,
+      },
+    );
+    rootElement.addEventListener(
+      "gestureend",
+      handleGestureEnd as EventListener,
+      {
+        capture: true,
+        passive: false,
+      },
+    );
 
     return () => {
       rootElement.removeEventListener("wheel", handleWheel, true);
+      rootElement.removeEventListener(
+        "gesturestart",
+        handleGestureStart as EventListener,
+        true,
+      );
+      rootElement.removeEventListener(
+        "gesturechange",
+        handleGestureChange as EventListener,
+        true,
+      );
+      rootElement.removeEventListener(
+        "gestureend",
+        handleGestureEnd as EventListener,
+        true,
+      );
     };
-  }, [onZoomIntent, rootRef, viewportRef]);
+  }, [isEventInsideViewport, rootRef, zoomAtClientPoint]);
 
   return {
     view,
@@ -321,7 +660,7 @@ export function useRoutineMapCamera({
     isPanning,
     cursor: isPanning ? "grabbing" : spacePressed ? "grab" : "default",
     resetView,
-    setViewWithinBounds,
+    zoomByStep,
     viewportHandlers: {
       onPointerDown,
       onPointerMove,
