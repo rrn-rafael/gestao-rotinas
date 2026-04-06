@@ -13,6 +13,8 @@ type RoutineMapHeaderProps = {
   totalCount: number;
 };
 
+const ACTIVE_TIMELINE_HIGHLIGHT_COLOR = "rgba(15, 23, 42, 0.85)";
+
 export function RoutineMapHeader({
   buckets,
   view,
@@ -73,9 +75,14 @@ export function RoutineMapHeader({
               <div
                 className={`absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
                   isCurrent
-                    ? "font-bold tracking-[-0.02em] text-slate-950"
+                    ? "font-bold tracking-[-0.02em]"
                     : "font-normal text-slate-600"
                 }`}
+                style={
+                  isCurrent
+                    ? { color: ACTIVE_TIMELINE_HIGHLIGHT_COLOR }
+                    : undefined
+                }
               >
                 {bucket.label}
               </div>
@@ -99,11 +106,12 @@ export function RoutineMapHeader({
 
       {currentBucket ? (
         <div
-          className="pointer-events-none absolute bottom-0 z-[3] bg-slate-900/85"
+          className="pointer-events-none absolute bottom-0 z-[3]"
           style={{
             left: view.x + currentBucket.x * view.scale,
             width: currentBucket.width * view.scale,
             height: TIMELINE_HEADER_DIVIDER_HEIGHT,
+            backgroundColor: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
           }}
         />
       ) : null}
