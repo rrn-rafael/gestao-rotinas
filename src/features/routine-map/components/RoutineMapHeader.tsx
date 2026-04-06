@@ -1,4 +1,9 @@
 import type { TimelineBucket, ViewState } from "../model/types";
+import {
+  TIMELINE_HEADER_DIVIDER_HEIGHT,
+  TIMELINE_LABEL_BAND_HEIGHT,
+  TIMELINE_TOP_BAR_HEIGHT,
+} from "../model/config";
 
 type RoutineMapHeaderProps = {
   buckets: readonly TimelineBucket[];
@@ -6,7 +11,6 @@ type RoutineMapHeaderProps = {
   currentBucketId: string | null;
   visibleCount: number;
   totalCount: number;
-  reservedLeftWidth: number;
 };
 
 export function RoutineMapHeader({
@@ -15,30 +19,37 @@ export function RoutineMapHeader({
   currentBucketId,
   visibleCount,
   totalCount,
-  reservedLeftWidth,
 }: RoutineMapHeaderProps) {
   return (
     <header
       className="relative z-20 h-full overflow-hidden bg-white/88 backdrop-blur-xl"
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,250,252,0.78))]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-slate-500/75" />
-
       <div
-        className="pointer-events-none absolute inset-y-0 left-0 z-[2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.84))]"
-        style={{ width: reservedLeftWidth }}
-      >
-        <div className="absolute inset-y-0 right-0 w-px bg-slate-300/85" />
-      </div>
+        className="pointer-events-none absolute inset-x-0 left-0 top-0 z-[1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,250,251,0.9))]"
+        style={{ height: TIMELINE_TOP_BAR_HEIGHT }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 z-[1] bg-[linear-gradient(180deg,rgba(250,251,253,0.76),rgba(248,250,252,0.58))]"
+        style={{
+          top: TIMELINE_TOP_BAR_HEIGHT,
+          height: TIMELINE_LABEL_BAND_HEIGHT,
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 bg-slate-500/75"
+        style={{ height: TIMELINE_HEADER_DIVIDER_HEIGHT }}
+      />
 
       <div className="absolute right-4 top-4 z-10 rounded-full border border-white/70 bg-white/86 px-3 py-1 text-[11px] font-medium text-slate-500 shadow-[0_2px_8px_rgba(15,23,42,0.08)]">
         {visibleCount}/{totalCount} rotinas
       </div>
 
       <div
-        className="absolute inset-0 overflow-hidden"
+        className="absolute inset-x-0 overflow-hidden"
         style={{
-          clipPath: `inset(0px 0px 0px ${reservedLeftWidth}px)`,
+          top: TIMELINE_TOP_BAR_HEIGHT,
+          height: TIMELINE_LABEL_BAND_HEIGHT,
         }}
       >
         {buckets.map((bucket) => {
@@ -52,9 +63,9 @@ export function RoutineMapHeader({
               className="absolute inset-y-0"
               style={{ left, width }}
             >
-              <div className="absolute left-0 top-0 bottom-[2px] w-px bg-slate-200/85" />
+              <div className="absolute inset-y-0 left-0 w-px bg-slate-200/85" />
               <div
-                className={`absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
+                className={`absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
                   isCurrent
                     ? "font-semibold tracking-[-0.02em] text-slate-950"
                     : "font-medium text-slate-400"
@@ -63,7 +74,7 @@ export function RoutineMapHeader({
                 {bucket.label}
               </div>
               {isCurrent ? (
-                <div className="absolute bottom-[10px] left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-slate-900/80" />
+                <div className="absolute bottom-[8px] left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-slate-900/80" />
               ) : null}
             </div>
           );
@@ -71,7 +82,7 @@ export function RoutineMapHeader({
 
         {buckets.length > 0 ? (
           <div
-            className="absolute top-0 bottom-[2px] w-px bg-slate-200/85"
+            className="absolute inset-y-0 w-px bg-slate-200/85"
             style={{
               left:
                 view.x +

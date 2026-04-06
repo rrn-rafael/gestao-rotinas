@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import { RoutineCanvasBackground } from "./components/RoutineCanvasBackground";
 import { RoutineCardNode } from "./components/RoutineCardNode";
@@ -14,8 +14,6 @@ import {
   INITIAL_VIEW,
   MAX_SCALE,
   MIN_SCALE,
-  TIMELINE_FILTER_RESERVE_FALLBACK,
-  TIMELINE_FILTER_RESERVE_GAP,
   TIMELINE_COLUMN_MIN_WIDTH,
   TIMELINE_HEADER_HEIGHT,
   TIMELINE_HOME_VIEW_PADDING,
@@ -66,7 +64,6 @@ export default function RoutineMap() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(
     DEFAULT_SELECTED_CARD_ID,
@@ -79,9 +76,6 @@ export default function RoutineMap() {
   );
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [filterReservedWidth, setFilterReservedWidth] = useState(
-    TIMELINE_FILTER_RESERVE_FALLBACK,
-  );
 
   const filterOptions = useMemo(
     () => buildRoutineFilterOptions(routineCards),
@@ -140,36 +134,6 @@ export default function RoutineMap() {
       window.clearInterval(intervalId);
     };
   }, []);
-
-  useLayoutEffect(() => {
-    const filterButtonElement = filterButtonRef.current;
-
-    if (!filterButtonElement) {
-      return;
-    }
-
-    const updateReservedWidth = () => {
-      const nextWidth = Math.ceil(
-        16 + filterButtonElement.getBoundingClientRect().width + TIMELINE_FILTER_RESERVE_GAP,
-      );
-
-      setFilterReservedWidth((currentWidth) =>
-        currentWidth === nextWidth ? currentWidth : nextWidth,
-      );
-    };
-
-    updateReservedWidth();
-
-    const resizeObserver = new ResizeObserver(() => {
-      updateReservedWidth();
-    });
-
-    resizeObserver.observe(filterButtonElement);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [activeFilterCount]);
 
   const {
     view,
@@ -253,7 +217,6 @@ export default function RoutineMap() {
 
         <div className="pointer-events-none absolute left-4 top-4 z-30 flex items-center gap-2">
           <button
-            ref={filterButtonRef}
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -292,7 +255,6 @@ export default function RoutineMap() {
             currentBucketId={currentBucketId}
             visibleCount={filteredCards.length}
             totalCount={routineCards.length}
-            reservedLeftWidth={filterReservedWidth}
           />
         </div>
 
