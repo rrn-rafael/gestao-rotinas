@@ -20,6 +20,9 @@ export function RoutineMapHeader({
   visibleCount,
   totalCount,
 }: RoutineMapHeaderProps) {
+  const currentBucket =
+    buckets.find((bucket) => bucket.id === currentBucketId) ?? null;
+
   return (
     <header
       className="relative z-20 h-full overflow-hidden bg-white/88 backdrop-blur-xl"
@@ -76,12 +79,6 @@ export function RoutineMapHeader({
               >
                 {bucket.label}
               </div>
-              {isCurrent ? (
-                <div
-                  className="absolute inset-x-0 bottom-0 bg-slate-900/85"
-                  style={{ height: TIMELINE_HEADER_DIVIDER_HEIGHT }}
-                />
-              ) : null}
             </div>
           );
         })}
@@ -99,6 +96,17 @@ export function RoutineMapHeader({
           />
         ) : null}
       </div>
+
+      {currentBucket ? (
+        <div
+          className="pointer-events-none absolute bottom-0 z-[3] bg-slate-900/85"
+          style={{
+            left: view.x + currentBucket.x * view.scale,
+            width: currentBucket.width * view.scale,
+            height: TIMELINE_HEADER_DIVIDER_HEIGHT,
+          }}
+        />
+      ) : null}
     </header>
   );
 }
