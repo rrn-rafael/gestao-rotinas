@@ -73,7 +73,7 @@ export function RoutineMapControls({
         </MapControlButton>
 
         <MapControlButton
-          label="Enquadrar mapa"
+          label="Exibir dia completo"
           onClick={onFitView}
           bordered={false}
         >

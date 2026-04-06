@@ -13,6 +13,7 @@ type RoutineMapViewportProps = {
   worldWidth: number;
   worldHeight: number;
   cursor: CSSProperties["cursor"];
+  overlay?: ReactNode;
   onPointerDown: PointerEventHandler<HTMLDivElement>;
   onPointerMove: PointerEventHandler<HTMLDivElement>;
   onPointerUp: PointerEventHandler<HTMLDivElement>;
@@ -26,6 +27,7 @@ export function RoutineMapViewport({
   worldWidth,
   worldHeight,
   cursor,
+  overlay,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -42,6 +44,8 @@ export function RoutineMapViewport({
       onPointerCancel={onPointerCancel}
       style={{ cursor }}
     >
+      {overlay}
+
       <div
         className="absolute left-0 top-0 origin-top-left will-change-transform"
         style={{

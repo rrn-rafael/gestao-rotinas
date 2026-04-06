@@ -1,341 +1,171 @@
 import {
   CARD_GAP,
   CARD_HEIGHT,
-  COLUMN_GAP,
-  COLUMN_WIDTH,
-  MAP_PADDING,
+  CARD_WIDTH,
+  MAP_HORIZONTAL_PADDING,
+  MAP_VERTICAL_PADDING,
+  TIMELINE_END_HOUR,
+  TIMELINE_START_HOUR,
 } from "./config";
-import type {
-  PositionedRoutineCard,
-  RoutineCard,
-  RoutineLink,
-  RoutineMapLayout,
-} from "./types";
+import type { PositionedRoutineCard, RoutineCard, RoutineMapLayout, TimelineBucket } from "./types";
 
-type ColumnGroup = {
-  level: number;
-  items: RoutineCard[];
-};
+const MINUTES_PER_HOUR = 60;
+const FIRST_TIMELINE_MINUTE = TIMELINE_START_HOUR * MINUTES_PER_HOUR;
+const LAST_TIMELINE_MINUTE =
+  (TIMELINE_END_HOUR + 1) * MINUTES_PER_HOUR - 1;
+const HOURLY_BUCKET_COUNT = TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1;
+const TOTAL_BUCKET_COUNT = HOURLY_BUCKET_COUNT + 2;
 
-type OrderIndexMap = Record<string, number>;
-
-const ORDER_SWEEPS = 4;
-const COLUMN_BALANCE_PENALTY = 0.08;
-
-function buildOrderIndex(columns: readonly ColumnGroup[]): OrderIndexMap {
-  const orderIndex: OrderIndexMap = {};
-
-  columns.forEach((column) => {
-    column.items.forEach((card, rowIndex) => {
-      orderIndex[card.id] = rowIndex;
-    });
-  });
-
-  return orderIndex;
-}
-
-function buildAbsoluteRowIndex(
-  columns: readonly ColumnGroup[],
-  startSlots: readonly number[],
-): OrderIndexMap {
-  const absoluteRowIndex: OrderIndexMap = {};
-
-  columns.forEach((column, columnIndex) => {
-    column.items.forEach((card, rowIndex) => {
-      absoluteRowIndex[card.id] = startSlots[columnIndex] + rowIndex;
-    });
-  });
-
-  return absoluteRowIndex;
-}
-
-function getAverageNeighborIndex(
-  neighbors: readonly string[],
-  orderIndex: OrderIndexMap,
-  fallback: number,
-): number {
-  const knownNeighbors = neighbors.filter(
-    (neighborId) => orderIndex[neighborId] !== undefined,
-  );
-
-  if (knownNeighbors.length === 0) {
-    return fallback;
+function parseTimelineMinutes(value: string | undefined) {
+  if (!value) {
+    return null;
   }
 
-  return (
-    knownNeighbors.reduce((sum, neighborId) => sum + orderIndex[neighborId], 0) /
-    knownNeighbors.length
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return hours * MINUTES_PER_HOUR + minutes;
+}
+
+export function getRoutineCardTimelineMinutes(card: RoutineCard) {
+  return parseTimelineMinutes(card.forecast ?? card.completedAt) ?? FIRST_TIMELINE_MINUTE;
+}
+
+export function getTimelineBucketIdForMinutes(minutes: number) {
+  if (minutes < FIRST_TIMELINE_MINUTE) {
+    return "before";
+  }
+
+  if (minutes > LAST_TIMELINE_MINUTE) {
+    return "after";
+  }
+
+  const hour = Math.floor(minutes / MINUTES_PER_HOUR);
+
+  return `hour-${hour}`;
+}
+
+export function getTimelineBucketIdForDate(date: Date) {
+  return getTimelineBucketIdForMinutes(
+    date.getHours() * MINUTES_PER_HOUR + date.getMinutes(),
   );
 }
 
-function sortColumnItems(
-  items: readonly RoutineCard[],
-  primaryWeight: (card: RoutineCard) => number,
-  secondaryWeight: (card: RoutineCard) => number,
-  originalIndex: Record<string, number>,
-): RoutineCard[] {
-  return [...items].sort((cardA, cardB) => {
-    const primaryDelta = primaryWeight(cardA) - primaryWeight(cardB);
+export function buildTimelineBuckets(columnWidth: number): TimelineBucket[] {
+  const buckets: TimelineBucket[] = [
+    {
+      id: "before",
+      label: "Antes das 8h",
+      kind: "before",
+      index: 0,
+      x: MAP_HORIZONTAL_PADDING,
+      width: columnWidth,
+      startMinutes: null,
+      endMinutes: FIRST_TIMELINE_MINUTE - 1,
+    },
+  ];
 
-    if (primaryDelta !== 0) {
-      return primaryDelta;
-    }
-
-    const secondaryDelta = secondaryWeight(cardA) - secondaryWeight(cardB);
-
-    if (secondaryDelta !== 0) {
-      return secondaryDelta;
-    }
-
-    return originalIndex[cardA.id] - originalIndex[cardB.id];
-  });
-}
-
-function findBestStartSlot(
-  column: ColumnGroup,
-  maxItemsInColumn: number,
-  centeredStartSlot: number,
-  parents: Record<string, string[]>,
-  children: Record<string, string[]>,
-  absoluteRowIndex: OrderIndexMap,
-): number {
-  const maxStartSlot = maxItemsInColumn - column.items.length;
-
-  if (maxStartSlot <= 0) {
-    return 0;
-  }
-
-  let bestStartSlot = centeredStartSlot;
-  let bestScore = Number.POSITIVE_INFINITY;
-
-  for (let candidateStartSlot = 0; candidateStartSlot <= maxStartSlot; candidateStartSlot += 1) {
-    let score = 0;
-
-    column.items.forEach((card, rowIndex) => {
-      const neighborRows = [...(parents[card.id] ?? []), ...(children[card.id] ?? [])]
-        .map((neighborId) => absoluteRowIndex[neighborId])
-        .filter((neighborRow): neighborRow is number => neighborRow !== undefined);
-
-      if (neighborRows.length === 0) {
-        return;
-      }
-
-      const targetRow =
-        neighborRows.reduce((sum, neighborRow) => sum + neighborRow, 0) /
-        neighborRows.length;
-
-      score += Math.abs(candidateStartSlot + rowIndex - targetRow);
+  for (let hour = TIMELINE_START_HOUR; hour <= TIMELINE_END_HOUR; hour += 1) {
+    buckets.push({
+      id: `hour-${hour}`,
+      label: `${hour}h`,
+      kind: "hour",
+      index: buckets.length,
+      x: MAP_HORIZONTAL_PADDING + buckets.length * columnWidth,
+      width: columnWidth,
+      startMinutes: hour * MINUTES_PER_HOUR,
+      endMinutes: hour * MINUTES_PER_HOUR + MINUTES_PER_HOUR - 1,
     });
-
-    score += Math.abs(candidateStartSlot - centeredStartSlot) * COLUMN_BALANCE_PENALTY;
-
-    if (score < bestScore) {
-      bestScore = score;
-      bestStartSlot = candidateStartSlot;
-    }
   }
 
-  return bestStartSlot;
+  buckets.push({
+    id: "after",
+    label: "Depois das 16h",
+    kind: "after",
+    index: buckets.length,
+    x: MAP_HORIZONTAL_PADDING + buckets.length * columnWidth,
+    width: columnWidth,
+    startMinutes: LAST_TIMELINE_MINUTE + 1,
+    endMinutes: null,
+  });
+
+  return buckets;
 }
 
 export function buildRoutineMapLayout(
   cards: readonly RoutineCard[],
-  links: readonly RoutineLink[],
+  columnWidth: number,
 ): RoutineMapLayout {
-  const incoming = Object.fromEntries(cards.map((card) => [card.id, 0]));
-  const outgoing = Object.fromEntries(
-    cards.map((card) => [card.id, [] as string[]]),
-  );
-  const parents = Object.fromEntries(
-    cards.map((card) => [card.id, [] as string[]]),
-  );
-  const originalIndex = Object.fromEntries(
-    cards.map((card, index) => [card.id, index]),
-  );
+  const buckets = buildTimelineBuckets(columnWidth);
+  const bucketEntries = buckets.map((bucket) => ({
+    bucket,
+    items: [] as { card: RoutineCard; minutes: number; originalIndex: number }[],
+  }));
 
-  for (const link of links) {
-    if (outgoing[link.from]) {
-      outgoing[link.from].push(link.to);
+  cards.forEach((card, originalIndex) => {
+    const minutes = getRoutineCardTimelineMinutes(card);
+    const bucketId = getTimelineBucketIdForMinutes(minutes);
+    const bucketEntry = bucketEntries.find((entry) => entry.bucket.id === bucketId);
+
+    if (!bucketEntry) {
+      return;
     }
 
-    if (parents[link.to]) {
-      parents[link.to].push(link.from);
-    }
-
-    if (incoming[link.to] !== undefined) {
-      incoming[link.to] += 1;
-    }
-  }
-
-  const queue = Object.keys(incoming).filter(
-    (cardId) => incoming[cardId] === 0,
-  );
-  const levelMap = Object.fromEntries(cards.map((card) => [card.id, 0]));
-
-  while (queue.length > 0) {
-    const currentId = queue.shift();
-
-    if (!currentId) {
-      continue;
-    }
-
-    for (const nextId of outgoing[currentId] ?? []) {
-      levelMap[nextId] = Math.max(levelMap[nextId], levelMap[currentId] + 1);
-      incoming[nextId] -= 1;
-
-      if (incoming[nextId] === 0) {
-        queue.push(nextId);
-      }
-    }
-  }
-
-  const groupedByLevel = new Map<number, RoutineCard[]>();
-
-  for (const card of cards) {
-    const level = levelMap[card.id] ?? 0;
-    const columnCards = groupedByLevel.get(level);
-
-    if (columnCards) {
-      columnCards.push(card);
-    } else {
-      groupedByLevel.set(level, [card]);
-    }
-  }
-
-  const columns: ColumnGroup[] = [...groupedByLevel.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([level, columnCards]) => ({
-      level,
-      items: sortColumnItems(
-        columnCards,
-        (card) =>
-          getAverageNeighborIndex(
-            parents[card.id] ?? [],
-            originalIndex,
-            originalIndex[card.id],
-          ),
-        (card) =>
-          getAverageNeighborIndex(
-            outgoing[card.id] ?? [],
-            originalIndex,
-            originalIndex[card.id],
-          ),
-        originalIndex,
-      ),
-    }));
-
-  let orderIndex = buildOrderIndex(columns);
-
-  for (let sweep = 0; sweep < ORDER_SWEEPS; sweep += 1) {
-    for (let columnIndex = 1; columnIndex < columns.length; columnIndex += 1) {
-      const column = columns[columnIndex];
-
-      column.items = sortColumnItems(
-        column.items,
-        (card) =>
-          getAverageNeighborIndex(
-            parents[card.id] ?? [],
-            orderIndex,
-            originalIndex[card.id],
-          ),
-        (card) =>
-          getAverageNeighborIndex(
-            outgoing[card.id] ?? [],
-            orderIndex,
-            originalIndex[card.id],
-          ),
-        originalIndex,
-      );
-
-      orderIndex = buildOrderIndex(columns);
-    }
-
-    for (let columnIndex = columns.length - 2; columnIndex >= 0; columnIndex -= 1) {
-      const column = columns[columnIndex];
-
-      column.items = sortColumnItems(
-        column.items,
-        (card) =>
-          getAverageNeighborIndex(
-            outgoing[card.id] ?? [],
-            orderIndex,
-            originalIndex[card.id],
-          ),
-        (card) =>
-          getAverageNeighborIndex(
-            parents[card.id] ?? [],
-            orderIndex,
-            originalIndex[card.id],
-          ),
-        originalIndex,
-      );
-
-      orderIndex = buildOrderIndex(columns);
-    }
-  }
-
-  const maxItemsInColumn = Math.max(
-    1,
-    ...columns.map((column) => column.items.length),
-  );
-  const maxColumnHeight =
-    maxItemsInColumn * CARD_HEIGHT +
-    Math.max(0, maxItemsInColumn - 1) * CARD_GAP;
-  const centeredStartSlots = columns.map((column) =>
-    Math.floor((maxItemsInColumn - column.items.length) / 2),
-  );
-  const startSlots = [...centeredStartSlots];
-  let absoluteRowIndex = buildAbsoluteRowIndex(columns, startSlots);
-
-  for (let sweep = 0; sweep < ORDER_SWEEPS; sweep += 1) {
-    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
-      startSlots[columnIndex] = findBestStartSlot(
-        columns[columnIndex],
-        maxItemsInColumn,
-        centeredStartSlots[columnIndex],
-        parents,
-        outgoing,
-        absoluteRowIndex,
-      );
-
-      absoluteRowIndex = buildAbsoluteRowIndex(columns, startSlots);
-    }
-
-    for (let columnIndex = columns.length - 1; columnIndex >= 0; columnIndex -= 1) {
-      startSlots[columnIndex] = findBestStartSlot(
-        columns[columnIndex],
-        maxItemsInColumn,
-        centeredStartSlots[columnIndex],
-        parents,
-        outgoing,
-        absoluteRowIndex,
-      );
-
-      absoluteRowIndex = buildAbsoluteRowIndex(columns, startSlots);
-    }
-  }
+    bucketEntry.items.push({ card, minutes, originalIndex });
+  });
 
   const positionedCards: PositionedRoutineCard[] = [];
+  let maxCardsInBucket = 0;
 
-  columns.forEach((column, columnIndex) => {
-    const startY = MAP_PADDING + startSlots[columnIndex] * (CARD_HEIGHT + CARD_GAP);
-    const x = MAP_PADDING + columnIndex * (COLUMN_WIDTH + COLUMN_GAP);
+  bucketEntries.forEach((entry) => {
+    entry.items.sort((left, right) => {
+      const minuteDelta = left.minutes - right.minutes;
 
-    column.items.forEach((card, rowIndex) => {
+      if (minuteDelta !== 0) {
+        return minuteDelta;
+      }
+
+      return left.originalIndex - right.originalIndex;
+    });
+
+    maxCardsInBucket = Math.max(maxCardsInBucket, entry.items.length);
+
+    entry.items.forEach((entryItem, rowIndex) => {
       positionedCards.push({
-        ...card,
-        x,
-        y: startY + rowIndex * (CARD_HEIGHT + CARD_GAP),
+        ...entryItem.card,
+        x: entry.bucket.x + (entry.bucket.width - CARD_WIDTH) / 2,
+        y:
+          MAP_VERTICAL_PADDING +
+          rowIndex * (CARD_HEIGHT + CARD_GAP),
       });
     });
   });
 
+  const contentHeight =
+    Math.max(maxCardsInBucket, 1) * CARD_HEIGHT +
+    Math.max(maxCardsInBucket - 1, 0) * CARD_GAP;
+
   return {
     cards: positionedCards,
-    width:
-      columns.length * COLUMN_WIDTH +
-      Math.max(0, columns.length - 1) * COLUMN_GAP +
-      MAP_PADDING * 2,
-    height: maxColumnHeight + MAP_PADDING * 2,
+    buckets,
+    width: MAP_HORIZONTAL_PADDING * 2 + TOTAL_BUCKET_COUNT * columnWidth,
+    height: contentHeight + MAP_VERTICAL_PADDING * 2,
   };
 }

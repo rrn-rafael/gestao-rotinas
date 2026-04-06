@@ -1,19 +1,25 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { RoutineCanvasBackground } from "./components/RoutineCanvasBackground";
-import { RoutineCardGrid } from "./components/RoutineCardGrid";
 import { RoutineCardNode } from "./components/RoutineCardNode";
 import { RoutineConnectorLayer } from "./components/RoutineConnectorLayer";
 import { RoutineFilterSidebar } from "./components/RoutineFilterSidebar";
 import { RoutineMapControls } from "./components/RoutineMapControls";
+import { RoutineMapHeader } from "./components/RoutineMapHeader";
 import { RoutineMapViewport } from "./components/RoutineMapViewport";
 import { useRoutineConnectorLayout } from "./hooks/useRoutineConnectorLayout";
 import { useRoutineMapCamera } from "./hooks/useRoutineMapCamera";
+import { clamp } from "./model/geometry";
 import {
   DEFAULT_SELECTED_CARD_ID,
-  INITIAL_VIEW,
+  MAP_HORIZONTAL_PADDING,
   MAX_SCALE,
   MIN_SCALE,
+  TIMELINE_COLUMN_MAX_WIDTH,
+  TIMELINE_COLUMN_MIN_WIDTH,
+  TIMELINE_COLUMN_ZOOM_STEP,
+  TIMELINE_HEADER_HEIGHT,
+  TIMELINE_HOME_VIEW_PADDING,
 } from "./model/config";
 import { routineCards, routineLinks } from "./model/data";
 import {
@@ -21,7 +27,6 @@ import {
   DEFAULT_ROUTINE_FILTERS,
   filterRoutineCards,
   getActiveRoutineFilterCount,
-  hasActiveFilters,
 } from "./model/filters";
 import {
   buildFocusSets,
@@ -29,10 +34,25 @@ import {
   getCardOpacity,
   getCardRelation,
 } from "./model/graph";
-import { buildRoutineMapLayout } from "./model/layout";
-import type { RoutineFilters } from "./model/types";
+import {
+  buildRoutineMapLayout,
+  getTimelineBucketIdForDate,
+} from "./model/layout";
+import type { RoutineFilters, ViewState } from "./model/types";
 
 const routineGraphIndexes = buildGraphIndexes(routineLinks);
+
+type PendingViewIntent =
+  | {
+      kind: "anchor";
+      viewportX: number;
+      viewportY: number;
+      contentRatioX: number;
+      verticalRatioY: number;
+    }
+  | {
+      kind: "fit";
+    };
 
 function FilterButtonIcon() {
   return (
@@ -54,12 +74,11 @@ function FilterButtonIcon() {
 }
 
 export default function RoutineMap() {
-  const BUTTON_ZOOM_STEP = 0.15;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const gridViewportRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pendingViewIntentRef = useRef<PendingViewIntent | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(
     DEFAULT_SELECTED_CARD_ID,
@@ -71,9 +90,11 @@ export default function RoutineMap() {
     DEFAULT_ROUTINE_FILTERS,
   );
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [columnWidth, setColumnWidth] = useState(TIMELINE_COLUMN_MIN_WIDTH);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
-  const layout = useMemo(
-    () => buildRoutineMapLayout(routineCards, routineLinks),
+  const referenceLayout = useMemo(
+    () => buildRoutineMapLayout(routineCards, TIMELINE_COLUMN_MIN_WIDTH),
     [],
   );
   const filterOptions = useMemo(
@@ -88,22 +109,10 @@ export default function RoutineMap() {
     () => new Set(filteredCards.map((card) => card.id)),
     [filteredCards],
   );
-  const layoutOrder = useMemo(
-    () =>
-      Object.fromEntries(
-        layout.cards.map((card, index) => [card.id, index] as const),
-      ),
-    [layout.cards],
+  const layout = useMemo(
+    () => buildRoutineMapLayout(filteredCards, columnWidth),
+    [columnWidth, filteredCards],
   );
-  const gridCards = useMemo(
-    () =>
-      [...filteredCards].sort(
-        (left, right) =>
-          (layoutOrder[left.id] ?? 0) - (layoutOrder[right.id] ?? 0),
-      ),
-    [filteredCards, layoutOrder],
-  );
-  const gridMode = hasActiveFilters(filters);
   const activeFilterCount = useMemo(
     () => getActiveRoutineFilterCount(filters),
     [filters],
@@ -113,6 +122,15 @@ export default function RoutineMap() {
   const focusSets = useMemo(
     () => buildFocusSets(presentedSelectedId, routineGraphIndexes),
     [presentedSelectedId],
+  );
+  const currentBucketId = useMemo(
+    () => getTimelineBucketIdForDate(currentTime),
+    [currentTime],
+  );
+  const currentBucket = useMemo(
+    () =>
+      layout.buckets.find((bucket) => bucket.id === currentBucketId) ?? null,
+    [currentBucketId, layout.buckets],
   );
 
   useEffect(() => {
@@ -127,31 +145,120 @@ export default function RoutineMap() {
     }
   }, [activeActionMenuCardId, filteredCardIds]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(new Date());
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  function buildAnchoredViewIntent(
+    nextColumnWidth: number,
+    viewportX: number,
+    viewportY: number,
+    view: ViewState,
+  ) {
+    if (nextColumnWidth === columnWidth) {
+      return null;
+    }
+
+    const contentWidth = Math.max(1, layout.width - MAP_HORIZONTAL_PADDING * 2);
+    const anchorWorldX = (viewportX - view.x) / Math.max(view.scale, 0.001);
+    const anchorWorldY = (viewportY - view.y) / Math.max(view.scale, 0.001);
+
+    return {
+      kind: "anchor" as const,
+      viewportX,
+      viewportY,
+      contentRatioX: clamp(
+        (anchorWorldX - MAP_HORIZONTAL_PADDING) / contentWidth,
+        0,
+        1,
+      ),
+      verticalRatioY: clamp(
+        anchorWorldY / Math.max(layout.height, 1),
+        0,
+        1,
+      ),
+    };
+  }
+
   const {
     view,
     spacePressed,
     isPanning,
     cursor,
     resetView,
-    zoomByStep,
+    setViewWithinBounds,
     viewportHandlers,
   } = useRoutineMapCamera({
     rootRef,
     viewportRef,
     worldWidth: layout.width,
     worldHeight: layout.height,
+    fitWorldWidth: referenceLayout.width,
+    fitWorldHeight: referenceLayout.height,
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE,
-    initialView: INITIAL_VIEW,
+    fitPadding: TIMELINE_HOME_VIEW_PADDING,
+    onZoomIntent: (intent) => {
+      const nextColumnWidth = clamp(
+        columnWidth + intent.delta * TIMELINE_COLUMN_ZOOM_STEP,
+        TIMELINE_COLUMN_MIN_WIDTH,
+        TIMELINE_COLUMN_MAX_WIDTH,
+      );
+      const nextIntent = buildAnchoredViewIntent(
+        nextColumnWidth,
+        intent.viewportX,
+        intent.viewportY,
+        view,
+      );
+
+      if (!nextIntent) {
+        return;
+      }
+
+      pendingViewIntentRef.current = nextIntent;
+      setColumnWidth(nextColumnWidth);
+    },
   });
 
   const { cardRects } = useRoutineConnectorLayout({
     worldRef,
     cardRefs,
-    cards: gridMode ? [] : layout.cards,
+    cards: layout.cards,
     view,
-    selectedId,
+    selectedId: presentedSelectedId,
   });
+
+  useLayoutEffect(() => {
+    const pendingViewIntent = pendingViewIntentRef.current;
+
+    if (!pendingViewIntent) {
+      return;
+    }
+
+    pendingViewIntentRef.current = null;
+
+    if (pendingViewIntent.kind === "fit") {
+      resetView();
+      return;
+    }
+
+    const nextContentWidth = Math.max(1, layout.width - MAP_HORIZONTAL_PADDING * 2);
+    const nextWorldX =
+      MAP_HORIZONTAL_PADDING + pendingViewIntent.contentRatioX * nextContentWidth;
+    const nextWorldY = pendingViewIntent.verticalRatioY * layout.height;
+
+    setViewWithinBounds({
+      scale: view.scale,
+      x: pendingViewIntent.viewportX - nextWorldX * view.scale,
+      y: pendingViewIntent.viewportY - nextWorldY * view.scale,
+    });
+  }, [layout.height, layout.width, resetView, setViewWithinBounds, view.scale]);
 
   function handleToggleSelect(cardId: string) {
     setSelectedId((currentSelectedId) =>
@@ -184,6 +291,44 @@ export default function RoutineMap() {
 
   function toggleFilterPanel() {
     setIsFilterPanelOpen((currentState) => !currentState);
+  }
+
+  function handleBucketZoom(delta: number) {
+    const viewportElement = viewportRef.current;
+
+    if (!viewportElement) {
+      return;
+    }
+
+    const viewportRect = viewportElement.getBoundingClientRect();
+    const nextColumnWidth = clamp(
+      columnWidth + delta * TIMELINE_COLUMN_ZOOM_STEP,
+      TIMELINE_COLUMN_MIN_WIDTH,
+      TIMELINE_COLUMN_MAX_WIDTH,
+    );
+    const nextIntent = buildAnchoredViewIntent(
+      nextColumnWidth,
+      viewportRect.width / 2,
+      viewportRect.height / 2,
+      view,
+    );
+
+    if (!nextIntent) {
+      return;
+    }
+
+    pendingViewIntentRef.current = nextIntent;
+    setColumnWidth(nextColumnWidth);
+  }
+
+  function handleFitView() {
+    if (columnWidth === TIMELINE_COLUMN_MIN_WIDTH) {
+      resetView();
+      return;
+    }
+
+    pendingViewIntentRef.current = { kind: "fit" };
+    setColumnWidth(TIMELINE_COLUMN_MIN_WIDTH);
   }
 
   return (
@@ -223,12 +368,6 @@ export default function RoutineMap() {
               </span>
             ) : null}
           </button>
-
-          {gridMode ? (
-            <div className="flex h-10 items-center rounded-full border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700">
-              {filteredCards.length} de {routineCards.length}
-            </div>
-          ) : null}
         </div>
 
         <RoutineFilterSidebar
@@ -242,86 +381,125 @@ export default function RoutineMap() {
           }}
         />
 
-        {gridMode ? (
-          <div
-            ref={gridViewportRef}
-            className="relative z-10 h-full overflow-auto px-4 pb-4 pt-20"
-            onClick={handleClearSelection}
+        <div className="absolute inset-x-0 top-0 z-20" style={{ height: TIMELINE_HEADER_HEIGHT }}>
+          <RoutineMapHeader
+            buckets={layout.buckets}
+            view={view}
+            currentBucketId={currentBucketId}
+            visibleCount={filteredCards.length}
+            totalCount={routineCards.length}
+          />
+        </div>
+
+        <div
+          className="absolute inset-x-0 bottom-0 z-10"
+          style={{ top: TIMELINE_HEADER_HEIGHT }}
+          onClick={handleClearSelection}
+        >
+          <RoutineMapControls
+            onZoomOut={() => handleBucketZoom(-1)}
+            onZoomIn={() => handleBucketZoom(1)}
+            onFitView={handleFitView}
+          />
+
+          <RoutineMapViewport
+            viewportRef={viewportRef}
+            view={view}
+            worldWidth={layout.width}
+            worldHeight={layout.height}
+            cursor={cursor}
+            overlay={
+              <>
+                {layout.buckets.map((bucket) => (
+                  <div
+                    key={bucket.id}
+                    className="pointer-events-none absolute inset-y-0 z-[1]"
+                    style={{
+                      left: view.x + bucket.x * view.scale,
+                      width: bucket.width * view.scale,
+                    }}
+                  >
+                    <div className="absolute inset-y-0 left-0 w-px bg-slate-300/75" />
+                  </div>
+                ))}
+
+                {layout.buckets.length > 0 ? (
+                  <div
+                    className="pointer-events-none absolute inset-y-0 z-[1] w-px bg-slate-300/75"
+                    style={{
+                      left:
+                        view.x +
+                        (layout.buckets[layout.buckets.length - 1].x +
+                          layout.buckets[layout.buckets.length - 1].width) *
+                          view.scale,
+                    }}
+                  />
+                ) : null}
+
+                {currentBucket ? (
+                  <div
+                    className="pointer-events-none absolute inset-y-0 z-[1]"
+                    style={{
+                      left: view.x + currentBucket.x * view.scale,
+                      width: currentBucket.width * view.scale,
+                    }}
+                  >
+                    <div className="absolute inset-0 bg-slate-950/[0.05]" />
+                    <div className="absolute inset-y-0 left-0 w-px bg-slate-300/85" />
+                    <div className="absolute inset-y-0 right-0 w-px bg-slate-300/85" />
+                  </div>
+                ) : null}
+              </>
+            }
+            onPointerDown={viewportHandlers.onPointerDown}
+            onPointerMove={viewportHandlers.onPointerMove}
+            onPointerUp={viewportHandlers.onPointerUp}
+            onPointerCancel={viewportHandlers.onPointerCancel}
           >
-            <RoutineCardGrid
-              cards={gridCards}
+            <RoutineConnectorLayer
+              width={layout.width}
+              height={layout.height}
+              links={routineLinks}
+              cardRects={cardRects}
               selectedId={presentedSelectedId}
               focusSets={focusSets}
-              activeActionMenuCardId={activeActionMenuCardId}
-              boundaryRef={gridViewportRef}
-              onSetActiveActionMenuCardId={setActiveActionMenuCardId}
-              onToggleSelect={handleToggleSelect}
-            />
-          </div>
-        ) : (
-          <div className="relative z-10 h-full" onClick={handleClearSelection}>
-            <RoutineMapControls
-              onZoomOut={() => zoomByStep(-BUTTON_ZOOM_STEP)}
-              onZoomIn={() => zoomByStep(BUTTON_ZOOM_STEP)}
-              onFitView={resetView}
             />
 
-            <RoutineMapViewport
-              viewportRef={viewportRef}
-              view={view}
-              worldWidth={layout.width}
-              worldHeight={layout.height}
-              cursor={cursor}
-              onPointerDown={viewportHandlers.onPointerDown}
-              onPointerMove={viewportHandlers.onPointerMove}
-              onPointerUp={viewportHandlers.onPointerUp}
-              onPointerCancel={viewportHandlers.onPointerCancel}
+            <div
+              ref={worldRef}
+              className="absolute inset-0 z-10"
+              style={{ width: layout.width, height: layout.height }}
             >
-              <RoutineConnectorLayer
-                width={layout.width}
-                height={layout.height}
-                links={routineLinks}
-                cardRects={cardRects}
-                selectedId={presentedSelectedId}
-                focusSets={focusSets}
-              />
+              {layout.cards.map((item) => {
+                const relation = hasActiveActionMenu
+                  ? "idle"
+                  : getCardRelation(item.id, presentedSelectedId, focusSets);
+                const opacity = getCardOpacity(
+                  item.status,
+                  relation,
+                  presentedSelectedId !== null,
+                );
 
-              <div
-                ref={worldRef}
-                className="absolute inset-0 z-10"
-                style={{ width: layout.width, height: layout.height }}
-              >
-                {layout.cards.map((item) => {
-                  const relation = hasActiveActionMenu
-                    ? "idle"
-                    : getCardRelation(item.id, presentedSelectedId, focusSets);
-                  const opacity = getCardOpacity(
-                    item.status,
-                    relation,
-                    presentedSelectedId !== null,
-                  );
-
-                  return (
-                    <RoutineCardNode
-                      key={item.id}
-                      item={item}
-                      relation={relation}
-                      opacity={opacity}
-                      interactionLocked={spacePressed || isPanning}
-                      menuBoundaryRef={viewportRef}
-                      activeActionMenuCardId={activeActionMenuCardId}
-                      onSetActiveActionMenuCardId={setActiveActionMenuCardId}
-                      buttonRef={(node) => {
-                        cardRefs.current[item.id] = node;
-                      }}
-                      onToggleSelect={handleToggleSelect}
-                    />
-                  );
-                })}
-              </div>
-            </RoutineMapViewport>
-          </div>
-        )}
+                return (
+                  <RoutineCardNode
+                    key={item.id}
+                    item={item}
+                    relation={relation}
+                    opacity={opacity}
+                    interactionLocked={spacePressed || isPanning}
+                    menuBoundaryRef={rootRef}
+                    activeActionMenuCardId={activeActionMenuCardId}
+                    onSetActiveActionMenuCardId={setActiveActionMenuCardId}
+                    buttonRef={(node) => {
+                      cardRefs.current[item.id] = node;
+                    }}
+                    onToggleSelect={handleToggleSelect}
+                  />
+                );
+              })}
+            </div>
+          </RoutineMapViewport>
+        </div>
       </main>
     </div>
   );

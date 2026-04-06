@@ -29,6 +29,19 @@ export type PositionedRoutineCard = RoutineCard & {
   y: number;
 };
 
+export type TimelineBucketKind = "before" | "hour" | "after";
+
+export type TimelineBucket = {
+  id: string;
+  label: string;
+  kind: TimelineBucketKind;
+  index: number;
+  x: number;
+  width: number;
+  startMinutes: number | null;
+  endMinutes: number | null;
+};
+
 export type RoutineLink = {
   from: string;
   to: string;
@@ -63,6 +76,7 @@ export type FocusSets = {
 
 export type RoutineMapLayout = {
   cards: PositionedRoutineCard[];
+  buckets: TimelineBucket[];
   width: number;
   height: number;
 };
