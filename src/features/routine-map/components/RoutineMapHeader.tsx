@@ -51,7 +51,7 @@ export function RoutineMapHeader({
       </div>
 
       <div
-        className="absolute inset-x-0 overflow-hidden"
+        className="absolute inset-x-0 z-[2] overflow-hidden"
         style={{
           top: TIMELINE_TOP_BAR_HEIGHT,
           height: TIMELINE_LABEL_BAND_HEIGHT,
@@ -60,19 +60,25 @@ export function RoutineMapHeader({
         {buckets.map((bucket) => {
           const left = view.x + bucket.x * view.scale;
           const width = bucket.width * view.scale;
+          const labelLeft = Math.round(left);
+          const labelWidth = Math.max(1, Math.round(width));
           const isCurrent = bucket.id === currentBucketId;
 
           return (
-            <div
-              key={bucket.id}
-              className="absolute inset-y-0"
-              style={{ left, width }}
-            >
+            <div key={bucket.id}>
               <div
-                className="absolute inset-y-0 left-0 bg-slate-300/80"
-                style={{ width: 0.5 }}
-              />
-              <div className="absolute inset-x-0 bottom-3 flex justify-center">
+                className="absolute inset-y-0"
+                style={{ left, width }}
+              >
+                <div
+                  className="absolute inset-y-0 left-0 bg-slate-300/80"
+                  style={{ width: 0.5 }}
+                />
+              </div>
+              <div
+                className="absolute bottom-3 flex justify-center"
+                style={{ left: labelLeft, width: labelWidth }}
+              >
                 <div
                   className={`whitespace-nowrap text-[12px] ${
                     isCurrent
