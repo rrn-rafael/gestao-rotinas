@@ -37,8 +37,8 @@ export function RoutineMapHeader({
         }}
       />
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 bg-slate-500/75"
-        style={{ height: TIMELINE_HEADER_DIVIDER_HEIGHT }}
+        className="pointer-events-none absolute inset-x-0 bottom-0 bg-slate-500/70"
+        style={{ height: 0.5 }}
       />
 
       <div className="absolute right-4 top-4 z-10 rounded-full border border-white/70 bg-white/86 px-3 py-1 text-[11px] font-medium text-slate-500 shadow-[0_2px_8px_rgba(15,23,42,0.08)]">
@@ -63,18 +63,24 @@ export function RoutineMapHeader({
               className="absolute inset-y-0"
               style={{ left, width }}
             >
-              <div className="absolute inset-y-0 left-0 w-px bg-slate-200/85" />
+              <div
+                className="absolute inset-y-0 left-0 bg-slate-300/80"
+                style={{ width: 0.5 }}
+              />
               <div
                 className={`absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
                   isCurrent
-                    ? "font-semibold tracking-[-0.02em] text-slate-950"
-                    : "font-medium text-slate-400"
+                    ? "font-bold tracking-[-0.02em] text-slate-950"
+                    : "font-normal text-slate-600"
                 }`}
               >
                 {bucket.label}
               </div>
               {isCurrent ? (
-                <div className="absolute bottom-[8px] left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-slate-900/80" />
+                <div
+                  className="absolute inset-x-0 bottom-0 bg-slate-900/85"
+                  style={{ height: TIMELINE_HEADER_DIVIDER_HEIGHT }}
+                />
               ) : null}
             </div>
           );
@@ -82,12 +88,13 @@ export function RoutineMapHeader({
 
         {buckets.length > 0 ? (
           <div
-            className="absolute inset-y-0 w-px bg-slate-200/85"
+            className="absolute inset-y-0 bg-slate-300/80"
             style={{
               left:
                 view.x +
                 (buckets[buckets.length - 1].x + buckets[buckets.length - 1].width) *
                   view.scale,
+              width: 0.5,
             }}
           />
         ) : null}

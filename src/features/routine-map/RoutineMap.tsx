@@ -286,19 +286,23 @@ export default function RoutineMap() {
                       width: bucket.width * view.scale,
                     }}
                   >
-                    <div className="absolute inset-y-0 left-0 w-px bg-slate-300/75" />
+                    <div
+                      className="absolute inset-y-0 left-0 bg-slate-300/70"
+                      style={{ width: 0.5 }}
+                    />
                   </div>
                 ))}
 
                 {layout.buckets.length > 0 ? (
                   <div
-                    className="pointer-events-none absolute inset-y-0 z-[1] w-px bg-slate-300/75"
+                    className="pointer-events-none absolute inset-y-0 z-[1] bg-slate-300/70"
                     style={{
                       left:
                         view.x +
                         (layout.buckets[layout.buckets.length - 1].x +
                           layout.buckets[layout.buckets.length - 1].width) *
                           view.scale,
+                      width: 0.5,
                     }}
                   />
                 ) : null}
@@ -312,8 +316,14 @@ export default function RoutineMap() {
                     }}
                   >
                     <div className="absolute inset-0 bg-slate-950/[0.05]" />
-                    <div className="absolute inset-y-0 left-0 w-px bg-slate-400/85" />
-                    <div className="absolute inset-y-0 right-0 w-px bg-slate-400/85" />
+                    <div
+                      className="absolute inset-y-0 left-0 bg-slate-400/80"
+                      style={{ width: 0.5 }}
+                    />
+                    <div
+                      className="absolute inset-y-0 right-0 bg-slate-400/80"
+                      style={{ width: 0.5 }}
+                    />
                   </div>
                 ) : null}
               </>
