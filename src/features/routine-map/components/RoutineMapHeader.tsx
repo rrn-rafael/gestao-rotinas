@@ -90,7 +90,7 @@ export function RoutineMapHeader({
                       ? {
                           color: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
                           WebkitTextFillColor: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
-                          fontWeight: 800,
+                          fontWeight: 700,
                           opacity: 1,
                           WebkitTextStroke: "0.35px currentColor",
                           textShadow: "0 0 0.01px currentColor",
