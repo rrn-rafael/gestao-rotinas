@@ -137,7 +137,6 @@ export default function RoutineMap() {
 
   const {
     view,
-    spacePressed,
     isPanning,
     cursor,
     resetView,
@@ -174,9 +173,7 @@ export default function RoutineMap() {
       return;
     }
 
-    if (!spacePressed) {
-      setSelectedId(null);
-    }
+    setSelectedId(null);
   }
 
   function handleApplyFilters(nextFilters: RoutineFilters) {
@@ -363,7 +360,7 @@ export default function RoutineMap() {
                     item={item}
                     relation={relation}
                     opacity={opacity}
-                    interactionLocked={spacePressed || isPanning}
+                    interactionLocked={isPanning}
                     menuBoundaryRef={rootRef}
                     activeActionMenuCardId={activeActionMenuCardId}
                     onSetActiveActionMenuCardId={setActiveActionMenuCardId}

@@ -76,7 +76,6 @@ export function useRoutineMapCamera({
   const touchPointsRef = useRef<Map<number, TouchPoint>>(new Map());
   const touchGestureRef = useRef<TouchGestureState | null>(null);
 
-  const [spacePressed, setSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [view, setView] = useState<ViewState>(viewRef.current);
 
@@ -162,6 +161,18 @@ export function useRoutineMapCamera({
     },
     [viewportRef],
   );
+
+  const canStartMousePan = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof Element)) {
+      return true;
+    }
+
+    return (
+      !target.closest(
+        "button, a, input, textarea, select, option, label, [role='button'], [role='menu'], [role='menuitem']",
+      )
+    );
+  }, []);
 
   const toViewportPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -360,37 +371,14 @@ export function useRoutineMapCamera({
   }, [centerHomeView, commitView, worldHeight, worldWidth]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space") {
-        return;
-      }
-
-      event.preventDefault();
-      setSpacePressed(true);
-    };
-
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code !== "Space") {
-        return;
-      }
-
-      setSpacePressed(false);
-      endPan();
-    };
-
     const handleWindowBlur = () => {
-      setSpacePressed(false);
       endPan();
       clearTouchGesture();
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("blur", handleWindowBlur);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
   }, [clearTouchGesture, endPan]);
@@ -431,7 +419,7 @@ export function useRoutineMapCamera({
         return;
       }
 
-      if (!spacePressed) {
+      if (!canStartMousePan(event.target)) {
         return;
       }
 
@@ -446,7 +434,7 @@ export function useRoutineMapCamera({
       };
       setIsPanning(true);
     },
-    [buildTouchGesture, spacePressed],
+    [buildTouchGesture, canStartMousePan],
   );
 
   const onPointerMove = useCallback(
@@ -652,9 +640,8 @@ export function useRoutineMapCamera({
 
   return {
     view,
-    spacePressed,
     isPanning,
-    cursor: isPanning ? "grabbing" : spacePressed ? "grab" : "default",
+    cursor: isPanning ? "grabbing" : "grab",
     resetView,
     zoomByStep,
     viewportHandlers: {
