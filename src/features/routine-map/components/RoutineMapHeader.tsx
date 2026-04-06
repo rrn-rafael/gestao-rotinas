@@ -13,7 +13,7 @@ type RoutineMapHeaderProps = {
   totalCount: number;
 };
 
-const ACTIVE_TIMELINE_HIGHLIGHT_COLOR = "rgba(15, 23, 42, 0.85)";
+const ACTIVE_TIMELINE_HIGHLIGHT_COLOR = "#0F172A";
 
 export function RoutineMapHeader({
   buckets,
@@ -76,7 +76,7 @@ export function RoutineMapHeader({
                 className={`absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
                   isCurrent
                     ? "font-bold tracking-[-0.02em]"
-                    : "font-normal text-slate-600"
+                    : "font-normal text-slate-500"
                 }`}
                 style={
                   isCurrent
