@@ -120,11 +120,7 @@ export function useRoutineMapCamera({
 
     const viewportRect = viewportElement.getBoundingClientRect();
     const availableWidth = Math.max(1, viewportRect.width - fitPadding * 2);
-    const availableHeight = Math.max(1, viewportRect.height - fitPadding * 2);
-    const fitScale = Math.min(
-      availableWidth / Math.max(worldWidth, 1),
-      availableHeight / Math.max(worldHeight, 1),
-    );
+    const fitScale = availableWidth / Math.max(worldWidth, 1);
     const nextScale = clamp(
       Math.min(initialView.scale, fitScale),
       minScale,
@@ -134,7 +130,7 @@ export function useRoutineMapCamera({
     return constrainView({
       scale: nextScale,
       x: quantize((viewportRect.width - worldWidth * nextScale) / 2),
-      y: quantize((viewportRect.height - worldHeight * nextScale) / 2),
+      y: quantize(fitPadding),
     });
   }, [
     constrainView,
