@@ -75,15 +75,16 @@ export function RoutineMapHeader({
               <div
                 className={`absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
                   isCurrent
-                    ? "font-bold tracking-[-0.02em]"
+                    ? "tracking-[-0.02em]"
                     : "font-normal text-slate-500"
                 }`}
                 style={
                   isCurrent
                     ? {
                         color: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
-                        WebkitTextStroke: "0.2px currentColor",
-                        textShadow: "0 0 0 currentColor",
+                        fontWeight: 800,
+                        WebkitTextStroke: "0.35px currentColor",
+                        textShadow: "0 0 0.01px currentColor",
                       }
                     : undefined
                 }
