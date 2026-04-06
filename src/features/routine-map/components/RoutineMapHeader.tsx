@@ -72,24 +72,28 @@ export function RoutineMapHeader({
                 className="absolute inset-y-0 left-0 bg-slate-300/80"
                 style={{ width: 0.5 }}
               />
-              <div
-                className={`absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[12px] ${
-                  isCurrent
-                    ? "tracking-[-0.02em]"
-                    : "font-normal text-slate-500"
-                }`}
-                style={
-                  isCurrent
-                    ? {
-                        color: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
-                        fontWeight: 800,
-                        WebkitTextStroke: "0.35px currentColor",
-                        textShadow: "0 0 0.01px currentColor",
-                      }
-                    : undefined
-                }
-              >
-                {bucket.label}
+              <div className="absolute inset-x-0 bottom-3 flex justify-center">
+                <div
+                  className={`whitespace-nowrap text-[12px] ${
+                    isCurrent
+                      ? "tracking-[-0.02em]"
+                      : "font-normal text-slate-500"
+                  }`}
+                  style={
+                    isCurrent
+                      ? {
+                          color: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
+                          WebkitTextFillColor: ACTIVE_TIMELINE_HIGHLIGHT_COLOR,
+                          fontWeight: 800,
+                          opacity: 1,
+                          WebkitTextStroke: "0.35px currentColor",
+                          textShadow: "0 0 0.01px currentColor",
+                        }
+                      : undefined
+                  }
+                >
+                  {bucket.label}
+                </div>
               </div>
             </div>
           );
