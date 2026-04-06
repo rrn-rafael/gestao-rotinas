@@ -540,15 +540,11 @@ export function useRoutineMapCamera({
     let gestureOriginScale = viewRef.current.scale;
 
     const handleWheel = (event: WheelEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) {
+      if (!isEventInsideViewport(event.target)) {
         return;
       }
 
       event.preventDefault();
-
-      if (!isEventInsideViewport(event.target)) {
-        return;
-      }
 
       const delta = clamp(-event.deltaY * 0.01, -0.2, 0.2);
 
