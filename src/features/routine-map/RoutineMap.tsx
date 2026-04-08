@@ -90,7 +90,12 @@ export default function RoutineMap() {
     [filteredCards],
   );
   const layout = useMemo(
-    () => buildRoutineMapLayout(filteredCards, TIMELINE_COLUMN_MIN_WIDTH),
+    () =>
+      buildRoutineMapLayout(
+        filteredCards,
+        routineLinks,
+        TIMELINE_COLUMN_MIN_WIDTH,
+      ),
     [filteredCards],
   );
   const activeFilterCount = useMemo(
