@@ -6,11 +6,7 @@ import {
   MAP_VERTICAL_PADDING,
   TIMELINE_BUCKET_LANE_GAP,
   TIMELINE_BUCKET_SAFE_PADDING,
-  TIMELINE_COLUMN_DENSITY_STEP,
   TIMELINE_COLUMN_EMPTY_WIDTH,
-  TIMELINE_COLUMN_MAX_WIDTH,
-  TIMELINE_COLUMN_MIN_WIDTH,
-  TIMELINE_COLUMN_SINGLE_WIDTH,
   TIMELINE_END_HOUR,
   TIMELINE_START_HOUR,
 } from "./config";
@@ -30,8 +26,7 @@ const LAST_TIMELINE_MINUTE =
 const MAX_GROUPED_HOUR_SPAN = 5;
 const MAX_GROUPED_HOUR_ITEMS = 4;
 const MAX_GROUPED_HOUR_ITEMS_WITH_FLOW = 6;
-const GROUPED_HOUR_SPAN_STEP = Math.round(TIMELINE_COLUMN_SINGLE_WIDTH * 0.52);
-const GROUPED_HOUR_ITEM_STEP = Math.round(TIMELINE_COLUMN_DENSITY_STEP * 1.2);
+const GROUPED_EMPTY_BAND_STEP = Math.round(TIMELINE_COLUMN_EMPTY_WIDTH * 0.75);
 
 type TimelineBucketDescriptor = Omit<TimelineBucket, "x" | "width">;
 
@@ -455,22 +450,6 @@ function buildGraphLayoutMeta(
   };
 }
 
-function getSingleHourBaseWidth(itemCount: number) {
-  if (itemCount === 0) {
-    return TIMELINE_COLUMN_EMPTY_WIDTH;
-  }
-
-  if (itemCount === 1) {
-    return TIMELINE_COLUMN_SINGLE_WIDTH;
-  }
-
-  return Math.min(
-    TIMELINE_COLUMN_MAX_WIDTH,
-    TIMELINE_COLUMN_MIN_WIDTH +
-      Math.max(itemCount - 2, 0) * TIMELINE_COLUMN_DENSITY_STEP,
-  );
-}
-
 function hasAnyFlowRelation(
   leftItems: readonly BucketItem[],
   rightItems: readonly BucketItem[],
@@ -777,23 +756,14 @@ function getMacroBandWidth(band: MacroTimelineBand) {
   const span = band.rawEntries.length;
   const itemCount = band.items.length;
 
-  if (
-    band.descriptor.kind !== "hour" ||
-    span === 1 ||
-    band.columnCount <= 1
-  ) {
-    return Math.max(requiredWidth, getSingleHourBaseWidth(itemCount));
+  if (itemCount === 0) {
+    return (
+      TIMELINE_COLUMN_EMPTY_WIDTH +
+      Math.max(span - 1, 0) * GROUPED_EMPTY_BAND_STEP
+    );
   }
 
-  const groupedBaseWidth = Math.min(
-    TIMELINE_COLUMN_MAX_WIDTH +
-      Math.max(span - 1, 0) * Math.round(TIMELINE_COLUMN_MAX_WIDTH * 0.35),
-    TIMELINE_COLUMN_SINGLE_WIDTH +
-      Math.max(span - 1, 0) * GROUPED_HOUR_SPAN_STEP +
-      Math.max(itemCount - 1, 0) * GROUPED_HOUR_ITEM_STEP,
-  );
-
-  return Math.max(requiredWidth, groupedBaseWidth);
+  return requiredWidth;
 }
 
 function getBandHorizontalGeometry(
