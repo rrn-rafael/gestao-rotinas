@@ -799,8 +799,6 @@ function buildBandPlacements(
 ) {
   const placements = new Map<string, BandPlacement>();
   const slotOccupancy = new Map<string, Set<number>>();
-  const componentBaseRow = new Map<number, number>();
-  let nextBaseRow = 0;
 
   const orderedItems = bands.flatMap((band, bandIndex) =>
     [...band.items]
@@ -837,16 +835,7 @@ function buildBandPlacements(
     const parentRows = (graphMeta.upstreamByNode.get(itemId) ?? [])
       .map((parentId) => placements.get(parentId)?.rowIndex)
       .filter((rowIndex): rowIndex is number => rowIndex !== undefined);
-    const componentId = graphMeta.componentByNode.get(itemId) ?? 0;
-    let preferredRow =
-      parentRows.length > 0
-        ? Math.max(...parentRows)
-        : (componentBaseRow.get(componentId) ?? nextBaseRow);
-
-    if (!componentBaseRow.has(componentId)) {
-      componentBaseRow.set(componentId, preferredRow);
-      nextBaseRow += 1;
-    }
+    let preferredRow = parentRows.length > 0 ? Math.max(...parentRows) : 0;
 
     const slotKey = `${bandIndex}:${columnIndex}`;
     const occupiedRows = slotOccupancy.get(slotKey) ?? new Set<number>();
