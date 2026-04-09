@@ -54,6 +54,7 @@ type GraphLayoutMeta = {
   ancestorSetByNode: Map<string, Set<string>>;
   descendantSetByNode: Map<string, Set<string>>;
   componentByNode: Map<string, number>;
+  componentSizeByNode: Map<string, number>;
   depthByNode: Map<string, number>;
   topologicalIndexByNode: Map<string, number>;
 };
@@ -421,6 +422,20 @@ function buildGraphLayoutMeta(
     componentIndex += 1;
   });
 
+  const componentSizeCounts = new Map<number, number>();
+
+  componentByNode.forEach((componentId) => {
+    componentSizeCounts.set(
+      componentId,
+      (componentSizeCounts.get(componentId) ?? 0) + 1,
+    );
+  });
+  const componentSizeByNode = new Map<string, number>();
+
+  componentByNode.forEach((componentId, nodeId) => {
+    componentSizeByNode.set(nodeId, componentSizeCounts.get(componentId) ?? 1);
+  });
+
   cards.forEach((card) => {
     getAncestors(card.id);
     getDescendants(card.id);
@@ -434,6 +449,7 @@ function buildGraphLayoutMeta(
     ancestorSetByNode,
     descendantSetByNode,
     componentByNode,
+    componentSizeByNode,
     depthByNode,
     topologicalIndexByNode,
   };
@@ -798,48 +814,127 @@ function buildBandPlacements(
   graphMeta: GraphLayoutMeta,
 ) {
   const placements = new Map<string, BandPlacement>();
-  const nextRowBySlot = new Map<string, number>();
+  const slotItems = new Map<
+    string,
+    { bandIndex: number; columnIndex: number; items: BucketItem[] }
+  >();
 
-  const orderedItems = bands.flatMap((band, bandIndex) =>
-    [...band.items]
-      .sort((left, right) => {
-        const leftColumn = band.columnByNode.get(left.card.id) ?? 0;
-        const rightColumn = band.columnByNode.get(right.card.id) ?? 0;
+  bands.forEach((band, bandIndex) => {
+    band.items.forEach((item) => {
+      const columnIndex = band.columnByNode.get(item.card.id) ?? 0;
+      const slotKey = `${bandIndex}:${columnIndex}`;
+      const slot =
+        slotItems.get(slotKey) ??
+        (() => {
+          const nextSlot = {
+            bandIndex,
+            columnIndex,
+            items: [] as BucketItem[],
+          };
+          slotItems.set(slotKey, nextSlot);
+          return nextSlot;
+        })();
 
-        if (leftColumn !== rightColumn) {
-          return leftColumn - rightColumn;
-        }
+      slot.items.push(item);
+    });
+  });
 
-        const topologyDelta =
-          (graphMeta.topologicalIndexByNode.get(left.card.id) ?? 0) -
-          (graphMeta.topologicalIndexByNode.get(right.card.id) ?? 0);
+  const orderedSlots = [...slotItems.values()].sort((left, right) => {
+    if (left.bandIndex !== right.bandIndex) {
+      return left.bandIndex - right.bandIndex;
+    }
 
-        if (topologyDelta !== 0) {
-          return topologyDelta;
-        }
+    return left.columnIndex - right.columnIndex;
+  });
 
-        const minuteDelta = left.minutes - right.minutes;
+  function getPlacedRelatedRows(nodeId: string) {
+    const relatedIds = new Set<string>([
+      ...(graphMeta.upstreamByNode.get(nodeId) ?? []),
+      ...(graphMeta.parentSetByNode.get(nodeId) ?? new Set<string>()),
+      ...(graphMeta.ancestorSetByNode.get(nodeId) ?? new Set<string>()),
+      ...(graphMeta.childSetByNode.get(nodeId) ?? new Set<string>()),
+      ...(graphMeta.downstreamByNode.get(nodeId) ?? []),
+      ...(graphMeta.descendantSetByNode.get(nodeId) ?? new Set<string>()),
+    ]);
 
-        if (minuteDelta !== 0) {
-          return minuteDelta;
-        }
+    return [...relatedIds]
+      .map((relatedId) => placements.get(relatedId)?.rowIndex)
+      .filter((rowIndex): rowIndex is number => rowIndex !== undefined);
+  }
 
-        return left.originalIndex - right.originalIndex;
-      })
-      .map((item) => ({ bandIndex, item })),
-  );
+  function getFlowPriority(item: BucketItem) {
+    const nodeId = item.card.id;
+    const upstreamCount = graphMeta.upstreamByNode.get(nodeId)?.length ?? 0;
+    const downstreamCount = graphMeta.downstreamByNode.get(nodeId)?.length ?? 0;
+    const ancestorCount = graphMeta.ancestorSetByNode.get(nodeId)?.size ?? 0;
+    const descendantCount = graphMeta.descendantSetByNode.get(nodeId)?.size ?? 0;
+    const componentSize = graphMeta.componentSizeByNode.get(nodeId) ?? 1;
+    const relatedRows = getPlacedRelatedRows(nodeId);
 
-  orderedItems.forEach(({ bandIndex, item }) => {
-    const itemId = item.card.id;
-    const columnIndex = bands[bandIndex].columnByNode.get(itemId) ?? 0;
-    const slotKey = `${bandIndex}:${columnIndex}`;
-    const rowIndex = nextRowBySlot.get(slotKey) ?? 0;
+    return {
+      nodeId,
+      relatedRows,
+      anchorPresent: relatedRows.length > 0,
+      anchorRow:
+        relatedRows.length > 0
+          ? relatedRows.reduce((sum, rowIndex) => sum + rowIndex, 0) /
+            relatedRows.length
+          : Number.POSITIVE_INFINITY,
+      flowStrength:
+        componentSize * 100 +
+        descendantCount * 12 +
+        ancestorCount * 8 +
+        downstreamCount * 5 +
+        upstreamCount * 4 +
+        (upstreamCount > 0 && downstreamCount > 0 ? 12 : 0) +
+        (upstreamCount > 0 || downstreamCount > 0 ? 6 : 0),
+    };
+  }
 
-    nextRowBySlot.set(slotKey, rowIndex + 1);
-    placements.set(itemId, {
-      bandIndex,
-      columnIndex,
-      rowIndex,
+  orderedSlots.forEach((slot) => {
+    const orderedItems = [...slot.items].sort((left, right) => {
+      const leftPriority = getFlowPriority(left);
+      const rightPriority = getFlowPriority(right);
+
+      if (leftPriority.anchorPresent !== rightPriority.anchorPresent) {
+        return leftPriority.anchorPresent ? -1 : 1;
+      }
+
+      if (
+        leftPriority.anchorPresent &&
+        rightPriority.anchorPresent &&
+        leftPriority.anchorRow !== rightPriority.anchorRow
+      ) {
+        return leftPriority.anchorRow - rightPriority.anchorRow;
+      }
+
+      if (leftPriority.flowStrength !== rightPriority.flowStrength) {
+        return rightPriority.flowStrength - leftPriority.flowStrength;
+      }
+
+      const topologyDelta =
+        (graphMeta.topologicalIndexByNode.get(leftPriority.nodeId) ?? 0) -
+        (graphMeta.topologicalIndexByNode.get(rightPriority.nodeId) ?? 0);
+
+      if (topologyDelta !== 0) {
+        return topologyDelta;
+      }
+
+      const minuteDelta = left.minutes - right.minutes;
+
+      if (minuteDelta !== 0) {
+        return minuteDelta;
+      }
+
+      return left.originalIndex - right.originalIndex;
+    });
+
+    orderedItems.forEach((item, rowIndex) => {
+      placements.set(item.card.id, {
+        bandIndex: slot.bandIndex,
+        columnIndex: slot.columnIndex,
+        rowIndex,
+      });
     });
   });
 
