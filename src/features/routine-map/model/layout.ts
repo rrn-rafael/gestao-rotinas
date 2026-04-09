@@ -777,7 +777,11 @@ function getMacroBandWidth(band: MacroTimelineBand) {
   const span = band.rawEntries.length;
   const itemCount = band.items.length;
 
-  if (band.descriptor.kind !== "hour" || span === 1) {
+  if (
+    band.descriptor.kind !== "hour" ||
+    span === 1 ||
+    band.columnCount <= 1
+  ) {
     return Math.max(requiredWidth, getSingleHourBaseWidth(itemCount));
   }
 
@@ -790,6 +794,29 @@ function getMacroBandWidth(band: MacroTimelineBand) {
   );
 
   return Math.max(requiredWidth, groupedBaseWidth);
+}
+
+function getBandHorizontalGeometry(
+  bucket: TimelineBucket,
+  columnCount: number,
+) {
+  const safePadding = TIMELINE_BUCKET_SAFE_PADDING;
+
+  if (columnCount <= 1) {
+    return {
+      contentLeft: bucket.x + safePadding,
+      columnStep: CARD_WIDTH,
+    };
+  }
+
+  const totalGapWidth =
+    bucket.width - safePadding * 2 - columnCount * CARD_WIDTH;
+  const columnGap = totalGapWidth / (columnCount - 1);
+
+  return {
+    contentLeft: bucket.x + safePadding,
+    columnStep: CARD_WIDTH + columnGap,
+  };
 }
 
 function buildTimelineBuckets(bands: readonly MacroTimelineBand[]) {
@@ -961,15 +988,10 @@ export function buildRoutineMapLayout(
 
   macroBands.forEach((band, bandIndex) => {
     const bucket = buckets[bandIndex];
-    const contentWidth =
-      band.columnCount * CARD_WIDTH +
-      Math.max(band.columnCount - 1, 0) * TIMELINE_BUCKET_LANE_GAP;
-    const contentLeft =
-      bucket.x +
-      Math.max(
-        TIMELINE_BUCKET_SAFE_PADDING,
-        Math.round((bucket.width - contentWidth) / 2),
-      );
+    const horizontalGeometry = getBandHorizontalGeometry(
+      bucket,
+      band.columnCount,
+    );
 
     band.items.forEach((item) => {
       const placement = placements.get(item.card.id);
@@ -979,8 +1001,8 @@ export function buildRoutineMapLayout(
       }
 
       const x =
-        contentLeft +
-        placement.columnIndex * (CARD_WIDTH + TIMELINE_BUCKET_LANE_GAP);
+        horizontalGeometry.contentLeft +
+        placement.columnIndex * horizontalGeometry.columnStep;
       const y = MAP_VERTICAL_PADDING + placement.rowIndex * (CARD_HEIGHT + CARD_GAP);
 
       positionedCards.push({
