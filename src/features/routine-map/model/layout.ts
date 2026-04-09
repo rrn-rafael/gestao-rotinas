@@ -20,15 +20,18 @@ import type {
   RoutineLink,
   RoutineMapLayout,
   TimelineBucket,
+  TimelineBucketKind,
 } from "./types";
 
 const MINUTES_PER_HOUR = 60;
 const FIRST_TIMELINE_MINUTE = TIMELINE_START_HOUR * MINUTES_PER_HOUR;
 const LAST_TIMELINE_MINUTE =
   (TIMELINE_END_HOUR + 1) * MINUTES_PER_HOUR - 1;
-const MAX_GROUPED_HOUR_SPAN = 4;
-const MAX_GROUPED_HOUR_ITEMS = 3;
-const MAX_GROUPED_HOUR_ITEMS_WITH_FLOW = 4;
+const MAX_GROUPED_HOUR_SPAN = 5;
+const MAX_GROUPED_HOUR_ITEMS = 4;
+const MAX_GROUPED_HOUR_ITEMS_WITH_FLOW = 6;
+const GROUPED_HOUR_SPAN_STEP = Math.round(TIMELINE_COLUMN_SINGLE_WIDTH * 0.52);
+const GROUPED_HOUR_ITEM_STEP = Math.round(TIMELINE_COLUMN_DENSITY_STEP * 1.2);
 
 type TimelineBucketDescriptor = Omit<TimelineBucket, "x" | "width">;
 
@@ -38,7 +41,7 @@ type BucketItem = {
   originalIndex: number;
 };
 
-type BucketEntry = {
+type RawBucketEntry = {
   descriptor: TimelineBucketDescriptor;
   items: BucketItem[];
 };
@@ -52,18 +55,21 @@ type GraphLayoutMeta = {
   descendantSetByNode: Map<string, Set<string>>;
   componentByNode: Map<string, number>;
   depthByNode: Map<string, number>;
+  topologicalIndexByNode: Map<string, number>;
 };
 
-type PlacementBand = {
-  id: string;
-  bucketEntries: BucketEntry[];
+type MacroTimelineBand = {
+  descriptor: TimelineBucketDescriptor;
+  rawEntries: RawBucketEntry[];
   items: BucketItem[];
-  columnAssignments: Map<string, { columnIndex: number; rowIndex: number }>;
+  columnByNode: Map<string, number>;
   columnCount: number;
 };
 
-type FlowColumn = {
-  items: BucketItem[];
+type BandPlacement = {
+  bandIndex: number;
+  columnIndex: number;
+  rowIndex: number;
 };
 
 function parseTimelineMinutes(value: string | undefined) {
@@ -121,6 +127,25 @@ export function getTimelineBucketIdForDate(date: Date) {
   );
 }
 
+export function findTimelineBucketForMinutes(
+  buckets: readonly TimelineBucket[],
+  minutes: number,
+) {
+  return (
+    buckets.find((bucket) => {
+      if (bucket.startMinutes === null) {
+        return bucket.endMinutes !== null && minutes <= bucket.endMinutes;
+      }
+
+      if (bucket.endMinutes === null) {
+        return minutes >= bucket.startMinutes;
+      }
+
+      return minutes >= bucket.startMinutes && minutes <= bucket.endMinutes;
+    }) ?? null
+  );
+}
+
 function buildTimelineBucketDescriptors(): TimelineBucketDescriptor[] {
   const descriptors: TimelineBucketDescriptor[] = [
     {
@@ -156,18 +181,21 @@ function buildTimelineBucketDescriptors(): TimelineBucketDescriptor[] {
   return descriptors;
 }
 
-function buildBucketEntries(cards: readonly RoutineCard[]) {
-  const entries: BucketEntry[] = buildTimelineBucketDescriptors().map(
+function buildRawBucketEntries(cards: readonly RoutineCard[]) {
+  const entries: RawBucketEntry[] = buildTimelineBucketDescriptors().map(
     (descriptor) => ({
       descriptor,
       items: [],
     }),
   );
+  const entryById = new Map(
+    entries.map((entry) => [entry.descriptor.id, entry] as const),
+  );
 
   cards.forEach((card, originalIndex) => {
     const minutes = getRoutineCardTimelineMinutes(card);
     const bucketId = getTimelineBucketIdForMinutes(minutes);
-    const entry = entries.find((candidate) => candidate.descriptor.id === bucketId);
+    const entry = entryById.get(bucketId);
 
     if (!entry) {
       return;
@@ -198,11 +226,15 @@ function buildGraphLayoutMeta(
   const upstreamByNode = new Map<string, string[]>();
   const downstreamByNode = new Map<string, string[]>();
   const undirectedNeighbors = new Map<string, Set<string>>();
+  const originalIndexByNode = new Map<string, number>();
+  const minutesByNode = new Map<string, number>();
 
-  cards.forEach((card) => {
+  cards.forEach((card, originalIndex) => {
     upstreamByNode.set(card.id, []);
     downstreamByNode.set(card.id, []);
     undirectedNeighbors.set(card.id, new Set());
+    originalIndexByNode.set(card.id, originalIndex);
+    minutesByNode.set(card.id, getRoutineCardTimelineMinutes(card));
   });
 
   links.forEach((link) => {
@@ -220,9 +252,99 @@ function buildGraphLayoutMeta(
     childSetByNode.set(card.id, new Set(downstreamByNode.get(card.id) ?? []));
   });
 
+  const indegreeByNode = new Map<string, number>();
+  const pendingNodes: string[] = [];
+
+  cards.forEach((card) => {
+    const indegree = upstreamByNode.get(card.id)?.length ?? 0;
+    indegreeByNode.set(card.id, indegree);
+
+    if (indegree === 0) {
+      pendingNodes.push(card.id);
+    }
+  });
+
+  const topologicalOrder: string[] = [];
+
+  function sortPendingNodes() {
+    pendingNodes.sort((leftId, rightId) => {
+      const minuteDelta =
+        (minutesByNode.get(leftId) ?? FIRST_TIMELINE_MINUTE) -
+        (minutesByNode.get(rightId) ?? FIRST_TIMELINE_MINUTE);
+
+      if (minuteDelta !== 0) {
+        return minuteDelta;
+      }
+
+      return (
+        (originalIndexByNode.get(leftId) ?? 0) -
+        (originalIndexByNode.get(rightId) ?? 0)
+      );
+    });
+  }
+
+  sortPendingNodes();
+
+  while (pendingNodes.length > 0) {
+    const currentId = pendingNodes.shift();
+
+    if (!currentId) {
+      continue;
+    }
+
+    topologicalOrder.push(currentId);
+
+    for (const childId of downstreamByNode.get(currentId) ?? []) {
+      const nextIndegree = (indegreeByNode.get(childId) ?? 0) - 1;
+      indegreeByNode.set(childId, nextIndegree);
+
+      if (nextIndegree === 0) {
+        pendingNodes.push(childId);
+        sortPendingNodes();
+      }
+    }
+  }
+
+  if (topologicalOrder.length < cards.length) {
+    const orderedIds = cards
+      .map((card) => card.id)
+      .sort((leftId, rightId) => {
+        const minuteDelta =
+          (minutesByNode.get(leftId) ?? FIRST_TIMELINE_MINUTE) -
+          (minutesByNode.get(rightId) ?? FIRST_TIMELINE_MINUTE);
+
+        if (minuteDelta !== 0) {
+          return minuteDelta;
+        }
+
+        return (
+          (originalIndexByNode.get(leftId) ?? 0) -
+          (originalIndexByNode.get(rightId) ?? 0)
+        );
+      });
+
+    topologicalOrder.splice(0, topologicalOrder.length, ...orderedIds);
+  }
+
+  const topologicalIndexByNode = new Map<string, number>();
+  const depthByNode = new Map<string, number>();
+
+  topologicalOrder.forEach((nodeId, index) => {
+    topologicalIndexByNode.set(nodeId, index);
+
+    const depth =
+      Math.max(
+        -1,
+        ...(upstreamByNode.get(nodeId) ?? []).map(
+          (parentId) => depthByNode.get(parentId) ?? 0,
+        ),
+      ) + 1;
+
+    depthByNode.set(nodeId, depth);
+  });
+
   const ancestorSetByNode = new Map<string, Set<string>>();
   const descendantSetByNode = new Map<string, Set<string>>();
-  const depthByNode = new Map<string, number>();
 
   function getAncestors(nodeId: string): Set<string> {
     const cached = ancestorSetByNode.get(nodeId);
@@ -268,28 +390,6 @@ function buildGraphLayoutMeta(
     return descendants;
   }
 
-  function getDepth(nodeId: string): number {
-    const cached = depthByNode.get(nodeId);
-
-    if (cached !== undefined) {
-      return cached;
-    }
-
-    const parents = upstreamByNode.get(nodeId) ?? [];
-
-    if (parents.length === 0) {
-      depthByNode.set(nodeId, 0);
-      return 0;
-    }
-
-    const depth =
-      Math.max(...parents.map((parentId) => getDepth(parentId))) + 1;
-
-    depthByNode.set(nodeId, depth);
-
-    return depth;
-  }
-
   const componentByNode = new Map<string, number>();
   let componentIndex = 0;
 
@@ -324,7 +424,6 @@ function buildGraphLayoutMeta(
   cards.forEach((card) => {
     getAncestors(card.id);
     getDescendants(card.id);
-    getDepth(card.id);
   });
 
   return {
@@ -336,24 +435,23 @@ function buildGraphLayoutMeta(
     descendantSetByNode,
     componentByNode,
     depthByNode,
+    topologicalIndexByNode,
   };
 }
 
-function getBaseBucketWidth(entry: BucketEntry) {
-  const count = entry.items.length;
-
-  if (count === 0) {
+function getSingleHourBaseWidth(itemCount: number) {
+  if (itemCount === 0) {
     return TIMELINE_COLUMN_EMPTY_WIDTH;
   }
 
-  if (count === 1) {
+  if (itemCount === 1) {
     return TIMELINE_COLUMN_SINGLE_WIDTH;
   }
 
   return Math.min(
     TIMELINE_COLUMN_MAX_WIDTH,
     TIMELINE_COLUMN_MIN_WIDTH +
-      Math.max(count - 2, 0) * TIMELINE_COLUMN_DENSITY_STEP,
+      Math.max(itemCount - 2, 0) * TIMELINE_COLUMN_DENSITY_STEP,
   );
 }
 
@@ -379,78 +477,116 @@ function hasAnyFlowRelation(
   );
 }
 
-function canMergeIntoPlacementBand(
-  bandEntries: readonly BucketEntry[],
-  nextEntry: BucketEntry,
+function canMergeIntoMacroBand(
+  currentEntries: readonly RawBucketEntry[],
+  nextEntry: RawBucketEntry,
   graphMeta: GraphLayoutMeta,
 ) {
   if (
     nextEntry.descriptor.kind !== "hour" ||
-    bandEntries.some((entry) => entry.descriptor.kind !== "hour")
+    currentEntries.some((entry) => entry.descriptor.kind !== "hour")
   ) {
     return false;
   }
 
-  const totalItemCount = bandEntries.reduce(
-    (sum, entry) => sum + entry.items.length,
-    0,
-  );
-  const bandSpan = bandEntries.length;
-  const nextItemCount = nextEntry.items.length;
+  const nextSpan = currentEntries.length + 1;
 
-  if (bandSpan >= MAX_GROUPED_HOUR_SPAN) {
+  if (nextSpan > MAX_GROUPED_HOUR_SPAN) {
     return false;
   }
 
-  const bandIsSparse = bandEntries.every((entry) => entry.items.length <= 1);
-  const nextIsSparse = nextItemCount <= 1;
+  const bandIsSparse = currentEntries.every((entry) => entry.items.length <= 1);
+  const nextIsSparse = nextEntry.items.length <= 1;
 
   if (!bandIsSparse || !nextIsSparse) {
     return false;
   }
 
-  const combinedItems = totalItemCount + nextItemCount;
-  const flowRelation = hasAnyFlowRelation(
-    bandEntries.flatMap((entry) => entry.items),
+  const currentItems = currentEntries.flatMap((entry) => entry.items);
+  const combinedItems = currentItems.length + nextEntry.items.length;
+  const hasEmptyHour =
+    currentEntries.some((entry) => entry.items.length === 0) ||
+    nextEntry.items.length === 0;
+  const hasFlowRelation = hasAnyFlowRelation(
+    currentItems,
     nextEntry.items,
     graphMeta,
   );
 
-  return flowRelation
-    ? combinedItems <= MAX_GROUPED_HOUR_ITEMS_WITH_FLOW
-    : combinedItems <= MAX_GROUPED_HOUR_ITEMS;
+  if (hasFlowRelation) {
+    return combinedItems <= MAX_GROUPED_HOUR_ITEMS_WITH_FLOW;
+  }
+
+  if (hasEmptyHour) {
+    return combinedItems <= MAX_GROUPED_HOUR_ITEMS + 1;
+  }
+
+  return combinedItems <= MAX_GROUPED_HOUR_ITEMS;
 }
 
-function buildPlacementBands(
-  bucketEntries: readonly BucketEntry[],
+function buildBandLabel(entries: readonly RawBucketEntry[]) {
+  if (entries.length === 1) {
+    return entries[0].descriptor.label;
+  }
+
+  const firstEntry = entries[0];
+  const lastEntry = entries[entries.length - 1];
+
+  if (
+    firstEntry.descriptor.kind === "hour" &&
+    lastEntry.descriptor.kind === "hour" &&
+    firstEntry.descriptor.startMinutes !== null &&
+    lastEntry.descriptor.startMinutes !== null
+  ) {
+    const firstHour = Math.floor(firstEntry.descriptor.startMinutes / MINUTES_PER_HOUR);
+    const lastHour = Math.floor(lastEntry.descriptor.startMinutes / MINUTES_PER_HOUR);
+
+    return `${firstHour}h-${lastHour}h`;
+  }
+
+  return `${firstEntry.descriptor.label} - ${lastEntry.descriptor.label}`;
+}
+
+function buildMacroTimelineBands(
+  rawEntries: readonly RawBucketEntry[],
   graphMeta: GraphLayoutMeta,
 ) {
-  const bands: PlacementBand[] = [];
-  let currentEntries: BucketEntry[] = [];
+  const bands: MacroTimelineBand[] = [];
+  let currentEntries: RawBucketEntry[] = [];
 
   const flushBand = () => {
     if (currentEntries.length === 0) {
       return;
     }
 
-    const bandItems = currentEntries.flatMap((entry) => entry.items);
+    const firstEntry = currentEntries[0];
+    const lastEntry = currentEntries[currentEntries.length - 1];
+
     bands.push({
-      id: currentEntries.map((entry) => entry.descriptor.id).join("__"),
-      bucketEntries: currentEntries,
-      items: bandItems,
-      columnAssignments: new Map(),
+      descriptor: {
+        id: currentEntries.map((entry) => entry.descriptor.id).join("__"),
+        label: buildBandLabel(currentEntries),
+        kind: firstEntry.descriptor.kind as TimelineBucketKind,
+        index: bands.length,
+        startMinutes: firstEntry.descriptor.startMinutes,
+        endMinutes: lastEntry.descriptor.endMinutes,
+      },
+      rawEntries: currentEntries,
+      items: currentEntries.flatMap((entry) => entry.items),
+      columnByNode: new Map(),
       columnCount: 1,
     });
+
     currentEntries = [];
   };
 
-  bucketEntries.forEach((entry) => {
+  rawEntries.forEach((entry) => {
     if (currentEntries.length === 0) {
       currentEntries = [entry];
       return;
     }
 
-    if (canMergeIntoPlacementBand(currentEntries, entry, graphMeta)) {
+    if (canMergeIntoMacroBand(currentEntries, entry, graphMeta)) {
       currentEntries = [...currentEntries, entry];
       return;
     }
@@ -491,17 +627,18 @@ function shareParentsOrChildren(
   return false;
 }
 
-function hasFlowColumnConflict(
+function hasColumnConflict(
   item: BucketItem,
   existing: BucketItem,
   graphMeta: GraphLayoutMeta,
 ) {
   const itemId = item.card.id;
   const existingId = existing.card.id;
-  const itemComponent = graphMeta.componentByNode.get(itemId);
-  const existingComponent = graphMeta.componentByNode.get(existingId);
 
-  if (itemComponent !== existingComponent) {
+  if (
+    graphMeta.componentByNode.get(itemId) !==
+    graphMeta.componentByNode.get(existingId)
+  ) {
     return false;
   }
 
@@ -515,32 +652,27 @@ function hasFlowColumnConflict(
   return shareParentsOrChildren(itemId, existingId, graphMeta);
 }
 
-function buildPlacementBandColumns(
-  band: PlacementBand,
+function buildMacroBandColumns(
+  band: MacroTimelineBand,
   graphMeta: GraphLayoutMeta,
 ) {
-  const columns: FlowColumn[] = [];
-  const placements = new Map<
-    string,
-    {
-      column: FlowColumn;
-      rowIndex: number;
-    }
-  >();
+  const itemIdsInBand = new Set(band.items.map((item) => item.card.id));
+  const columns: BucketItem[][] = [];
+  const columnByNode = new Map<string, number>();
 
   const sortedItems = [...band.items].sort((left, right) => {
+    const topologyDelta =
+      (graphMeta.topologicalIndexByNode.get(left.card.id) ?? 0) -
+      (graphMeta.topologicalIndexByNode.get(right.card.id) ?? 0);
+
+    if (topologyDelta !== 0) {
+      return topologyDelta;
+    }
+
     const minuteDelta = left.minutes - right.minutes;
 
     if (minuteDelta !== 0) {
       return minuteDelta;
-    }
-
-    const depthDelta =
-      (graphMeta.depthByNode.get(left.card.id) ?? 0) -
-      (graphMeta.depthByNode.get(right.card.id) ?? 0);
-
-    if (depthDelta !== 0) {
-      return depthDelta;
     }
 
     return left.originalIndex - right.originalIndex;
@@ -548,81 +680,71 @@ function buildPlacementBandColumns(
 
   sortedItems.forEach((item) => {
     const itemId = item.card.id;
-    const relatedColumnIndexes: number[] = [];
+    const inBandParents = (graphMeta.upstreamByNode.get(itemId) ?? []).filter(
+      (parentId) => itemIdsInBand.has(parentId),
+    );
+    const earliestColumn =
+      inBandParents.length > 0
+        ? Math.max(
+            ...inBandParents.map((parentId) => (columnByNode.get(parentId) ?? 0) + 1),
+          )
+        : 0;
+    const relatedColumns = [
+      ...inBandParents,
+      ...(graphMeta.ancestorSetByNode.get(itemId) ?? new Set<string>()),
+      ...(graphMeta.descendantSetByNode.get(itemId) ?? new Set<string>()),
+      ...(graphMeta.parentSetByNode.get(itemId) ?? new Set<string>()),
+      ...(graphMeta.childSetByNode.get(itemId) ?? new Set<string>()),
+    ]
+      .filter((relatedId) => itemIdsInBand.has(relatedId))
+      .map((relatedId) => columnByNode.get(relatedId))
+      .filter((columnIndex): columnIndex is number => columnIndex !== undefined);
+    const preferredColumn =
+      relatedColumns.length > 0
+        ? Math.max(
+            earliestColumn,
+            Math.round(
+              relatedColumns.reduce((sum, columnIndex) => sum + columnIndex, 0) /
+                relatedColumns.length,
+            ),
+          )
+        : earliestColumn;
 
-    [
-      ...(graphMeta.upstreamByNode.get(itemId) ?? []),
-      ...(graphMeta.downstreamByNode.get(itemId) ?? []),
-      ...(graphMeta.ancestorSetByNode.get(itemId) ?? []),
-      ...(graphMeta.descendantSetByNode.get(itemId) ?? []),
-    ].forEach((relatedId) => {
-      const relatedPlacement = placements.get(relatedId);
-
-      if (!relatedPlacement) {
-        return;
-      }
-
-      const columnIndex = columns.indexOf(relatedPlacement.column);
-
-      if (columnIndex >= 0) {
-        relatedColumnIndexes.push(columnIndex);
-      }
-    });
-
-    const preferredColumnIndex =
-      relatedColumnIndexes.length > 0
-        ? relatedColumnIndexes.reduce((sum, value) => sum + value, 0) /
-          relatedColumnIndexes.length
-        : columns.length;
-
-    const availableColumns = columns
-      .map((column, index) => ({ column, index }))
-      .filter(({ column }) =>
-        !column.items.some((existing) =>
-          hasFlowColumnConflict(item, existing, graphMeta),
-        ),
+    const candidateColumns = columns
+      .map((column, columnIndex) => ({ column, columnIndex }))
+      .filter(
+        ({ column, columnIndex }) =>
+          columnIndex >= earliestColumn &&
+          !column.some((existing) => hasColumnConflict(item, existing, graphMeta)),
       )
       .sort((left, right) => {
-        const leftDistance = Math.abs(left.index - preferredColumnIndex);
-        const rightDistance = Math.abs(right.index - preferredColumnIndex);
+        const leftDistance = Math.abs(left.columnIndex - preferredColumn);
+        const rightDistance = Math.abs(right.columnIndex - preferredColumn);
 
         if (leftDistance !== rightDistance) {
           return leftDistance - rightDistance;
         }
 
-        return left.column.items.length - right.column.items.length;
+        return left.column.length - right.column.length;
       });
 
-    if (availableColumns.length > 0) {
-      const targetColumn = availableColumns[0].column;
-      const rowIndex = targetColumn.items.length;
+    let chosenColumnIndex: number;
 
-      targetColumn.items.push(item);
-      placements.set(itemId, { column: targetColumn, rowIndex });
-      return;
+    if (candidateColumns.length > 0) {
+      chosenColumnIndex = candidateColumns[0].columnIndex;
+    } else {
+      chosenColumnIndex = Math.max(earliestColumn, columns.length);
+
+      while (columns.length <= chosenColumnIndex) {
+        columns.push([]);
+      }
     }
 
-    const insertIndex = Math.min(
-      Math.max(Math.round(preferredColumnIndex), 0),
-      columns.length,
-    );
-    const newColumn: FlowColumn = {
-      items: [item],
-    };
-
-    columns.splice(insertIndex, 0, newColumn);
-    placements.set(itemId, { column: newColumn, rowIndex: 0 });
+    columns[chosenColumnIndex].push(item);
+    columnByNode.set(itemId, chosenColumnIndex);
   });
 
-  band.columnAssignments = new Map(
-    [...placements.entries()].map(([itemId, placement]) => [
-      itemId,
-      {
-        columnIndex: columns.indexOf(placement.column),
-        rowIndex: placement.rowIndex,
-      },
-    ]),
-  );
+  band.columnByNode = columnByNode;
   band.columnCount = Math.max(columns.length, 1);
 }
 
@@ -634,47 +756,33 @@ function getRequiredBandWidth(columnCount: number) {
   );
 }
 
-function allocateBucketWidthsByBand(bands: readonly PlacementBand[]) {
-  const widths = new Map<string, number>();
+function getMacroBandWidth(band: MacroTimelineBand) {
+  const requiredWidth = getRequiredBandWidth(band.columnCount);
+  const span = band.rawEntries.length;
+  const itemCount = band.items.length;
 
-  bands.forEach((band) => {
-    const baseWidths = band.bucketEntries.map((entry) => getBaseBucketWidth(entry));
-    const baseTotalWidth = baseWidths.reduce((sum, width) => sum + width, 0);
-    const requiredBandWidth = getRequiredBandWidth(band.columnCount);
-    const extraWidth = Math.max(requiredBandWidth - baseTotalWidth, 0);
-    const weights = band.bucketEntries.map((entry) =>
-      Math.max(entry.items.length, 1),
-    );
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (band.descriptor.kind !== "hour" || span === 1) {
+    return Math.max(requiredWidth, getSingleHourBaseWidth(itemCount));
+  }
 
-    let remainingExtra = extraWidth;
+  const groupedBaseWidth = Math.min(
+    TIMELINE_COLUMN_MAX_WIDTH +
+      Math.max(span - 1, 0) * Math.round(TIMELINE_COLUMN_MAX_WIDTH * 0.35),
+    TIMELINE_COLUMN_SINGLE_WIDTH +
+      Math.max(span - 1, 0) * GROUPED_HOUR_SPAN_STEP +
+      Math.max(itemCount - 1, 0) * GROUPED_HOUR_ITEM_STEP,
+  );
 
-    band.bucketEntries.forEach((entry, index) => {
-      const baseWidth = baseWidths[index];
-      const isLast = index === band.bucketEntries.length - 1;
-      const share = isLast
-        ? remainingExtra
-        : Math.round((extraWidth * weights[index]) / totalWeight);
-      const width = baseWidth + share;
-
-      widths.set(entry.descriptor.id, width);
-      remainingExtra -= share;
-    });
-  });
-
-  return widths;
+  return Math.max(requiredWidth, groupedBaseWidth);
 }
 
-function buildTimelineBuckets(
-  bucketEntries: readonly BucketEntry[],
-  bucketWidths: Map<string, number>,
-) {
+function buildTimelineBuckets(bands: readonly MacroTimelineBand[]) {
   let currentX = MAP_HORIZONTAL_PADDING;
 
-  return bucketEntries.map((entry) => {
-    const width = bucketWidths.get(entry.descriptor.id) ?? getBaseBucketWidth(entry);
+  return bands.map((band) => {
+    const width = getMacroBandWidth(band);
     const bucket: TimelineBucket = {
-      ...entry.descriptor,
+      ...band.descriptor,
       x: currentX,
       width,
     };
@@ -685,26 +793,78 @@ function buildTimelineBuckets(
   });
 }
 
-function getBandGeometry(
-  band: PlacementBand,
-  buckets: readonly TimelineBucket[],
+function buildBandPlacements(
+  bands: readonly MacroTimelineBand[],
+  graphMeta: GraphLayoutMeta,
 ) {
-  const firstBucket = buckets.find(
-    (bucket) => bucket.id === band.bucketEntries[0]?.descriptor.id,
-  );
-  const lastBucket = buckets.find(
-    (bucket) =>
-      bucket.id === band.bucketEntries[band.bucketEntries.length - 1]?.descriptor.id,
+  const placements = new Map<string, BandPlacement>();
+  const slotOccupancy = new Map<string, Set<number>>();
+  const componentBaseRow = new Map<number, number>();
+  let nextBaseRow = 0;
+
+  const orderedItems = bands.flatMap((band, bandIndex) =>
+    [...band.items]
+      .sort((left, right) => {
+        const leftColumn = band.columnByNode.get(left.card.id) ?? 0;
+        const rightColumn = band.columnByNode.get(right.card.id) ?? 0;
+
+        if (leftColumn !== rightColumn) {
+          return leftColumn - rightColumn;
+        }
+
+        const topologyDelta =
+          (graphMeta.topologicalIndexByNode.get(left.card.id) ?? 0) -
+          (graphMeta.topologicalIndexByNode.get(right.card.id) ?? 0);
+
+        if (topologyDelta !== 0) {
+          return topologyDelta;
+        }
+
+        const minuteDelta = left.minutes - right.minutes;
+
+        if (minuteDelta !== 0) {
+          return minuteDelta;
+        }
+
+        return left.originalIndex - right.originalIndex;
+      })
+      .map((item) => ({ bandIndex, item })),
   );
 
-  if (!firstBucket || !lastBucket) {
-    return null;
-  }
+  orderedItems.forEach(({ bandIndex, item }) => {
+    const itemId = item.card.id;
+    const columnIndex = bands[bandIndex].columnByNode.get(itemId) ?? 0;
+    const parentRows = (graphMeta.upstreamByNode.get(itemId) ?? [])
+      .map((parentId) => placements.get(parentId)?.rowIndex)
+      .filter((rowIndex): rowIndex is number => rowIndex !== undefined);
+    const componentId = graphMeta.componentByNode.get(itemId) ?? 0;
+    let preferredRow =
+      parentRows.length > 0
+        ? Math.max(...parentRows)
+        : (componentBaseRow.get(componentId) ?? nextBaseRow);
 
-  return {
-    x: firstBucket.x,
-    width: lastBucket.x + lastBucket.width - firstBucket.x,
-  };
+    if (!componentBaseRow.has(componentId)) {
+      componentBaseRow.set(componentId, preferredRow);
+      nextBaseRow += 1;
+    }
+
+    const slotKey = `${bandIndex}:${columnIndex}`;
+    const occupiedRows = slotOccupancy.get(slotKey) ?? new Set<number>();
+
+    while (occupiedRows.has(preferredRow)) {
+      preferredRow += 1;
+    }
+
+    occupiedRows.add(preferredRow);
+    slotOccupancy.set(slotKey, occupiedRows);
+    placements.set(itemId, {
+      bandIndex,
+      columnIndex,
+      rowIndex: preferredRow,
+    });
+  });
+
+  return placements;
 }
 
 export function buildRoutineMapLayout(
@@ -712,46 +872,42 @@ export function buildRoutineMapLayout(
   links: readonly RoutineLink[],
   _columnWidth: number,
 ): RoutineMapLayout {
-  const bucketEntries = buildBucketEntries(cards);
+  const rawEntries = buildRawBucketEntries(cards);
   const graphMeta = buildGraphLayoutMeta(cards, links);
-  const placementBands = buildPlacementBands(bucketEntries, graphMeta);
+  const macroBands = buildMacroTimelineBands(rawEntries, graphMeta);
 
-  placementBands.forEach((band) => {
-    buildPlacementBandColumns(band, graphMeta);
+  macroBands.forEach((band) => {
+    buildMacroBandColumns(band, graphMeta);
   });
 
-  const bucketWidths = allocateBucketWidthsByBand(placementBands);
-  const buckets = buildTimelineBuckets(bucketEntries, bucketWidths);
+  const buckets = buildTimelineBuckets(macroBands);
+  const placements = buildBandPlacements(macroBands, graphMeta);
   const positionedCards: PositionedRoutineCard[] = [];
   let maxBottom = MAP_VERTICAL_PADDING + CARD_HEIGHT;
 
-  placementBands.forEach((band) => {
-    const geometry = getBandGeometry(band, buckets);
-
-    if (!geometry) {
-      return;
-    }
-
-    const laneWidth =
-      (geometry.width -
-        TIMELINE_BUCKET_SAFE_PADDING * 2 -
-        Math.max(band.columnCount - 1, 0) * TIMELINE_BUCKET_LANE_GAP) /
-      band.columnCount;
+  macroBands.forEach((band, bandIndex) => {
+    const bucket = buckets[bandIndex];
+    const contentWidth =
+      band.columnCount * CARD_WIDTH +
+      Math.max(band.columnCount - 1, 0) * TIMELINE_BUCKET_LANE_GAP;
+    const contentLeft =
+      bucket.x +
+      Math.max(
+        TIMELINE_BUCKET_SAFE_PADDING,
+        Math.round((bucket.width - contentWidth) / 2),
+      );
 
     band.items.forEach((item) => {
-      const assignment = band.columnAssignments.get(item.card.id);
+      const placement = placements.get(item.card.id);
 
-      if (!assignment) {
+      if (!placement) {
         return;
       }
 
       const x =
-        geometry.x +
-        TIMELINE_BUCKET_SAFE_PADDING +
-        assignment.columnIndex * (laneWidth + TIMELINE_BUCKET_LANE_GAP) +
-        (laneWidth - CARD_WIDTH) / 2;
-      const y =
-        MAP_VERTICAL_PADDING + assignment.rowIndex * (CARD_HEIGHT + CARD_GAP);
+        contentLeft +
+        placement.columnIndex * (CARD_WIDTH + TIMELINE_BUCKET_LANE_GAP);
+      const y = MAP_VERTICAL_PADDING + placement.rowIndex * (CARD_HEIGHT + CARD_GAP);
 
       positionedCards.push({
         ...item.card,

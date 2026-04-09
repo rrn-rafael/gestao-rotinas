@@ -33,7 +33,7 @@ import {
 } from "./model/graph";
 import {
   buildRoutineMapLayout,
-  getTimelineBucketIdForDate,
+  findTimelineBucketForMinutes,
 } from "./model/layout";
 import type { RoutineFilters } from "./model/types";
 
@@ -108,15 +108,15 @@ export default function RoutineMap() {
     () => buildFocusSets(presentedSelectedId, routineGraphIndexes),
     [presentedSelectedId],
   );
-  const currentBucketId = useMemo(
-    () => getTimelineBucketIdForDate(currentTime),
+  const currentTimelineMinutes = useMemo(
+    () => currentTime.getHours() * 60 + currentTime.getMinutes(),
     [currentTime],
   );
   const currentBucket = useMemo(
-    () =>
-      layout.buckets.find((bucket) => bucket.id === currentBucketId) ?? null,
-    [currentBucketId, layout.buckets],
+    () => findTimelineBucketForMinutes(layout.buckets, currentTimelineMinutes),
+    [currentTimelineMinutes, layout.buckets],
   );
+  const currentBucketId = currentBucket?.id ?? null;
 
   useEffect(() => {
     if (selectedId && !filteredCardIds.has(selectedId)) {
