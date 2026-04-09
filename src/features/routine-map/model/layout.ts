@@ -798,7 +798,7 @@ function buildBandPlacements(
   graphMeta: GraphLayoutMeta,
 ) {
   const placements = new Map<string, BandPlacement>();
-  const slotOccupancy = new Map<string, Set<number>>();
+  const nextRowBySlot = new Map<string, number>();
 
   const orderedItems = bands.flatMap((band, bandIndex) =>
     [...band.items]
@@ -832,24 +832,14 @@ function buildBandPlacements(
   orderedItems.forEach(({ bandIndex, item }) => {
     const itemId = item.card.id;
     const columnIndex = bands[bandIndex].columnByNode.get(itemId) ?? 0;
-    const parentRows = (graphMeta.upstreamByNode.get(itemId) ?? [])
-      .map((parentId) => placements.get(parentId)?.rowIndex)
-      .filter((rowIndex): rowIndex is number => rowIndex !== undefined);
-    let preferredRow = parentRows.length > 0 ? Math.max(...parentRows) : 0;
-
     const slotKey = `${bandIndex}:${columnIndex}`;
-    const occupiedRows = slotOccupancy.get(slotKey) ?? new Set<number>();
+    const rowIndex = nextRowBySlot.get(slotKey) ?? 0;
 
-    while (occupiedRows.has(preferredRow)) {
-      preferredRow += 1;
-    }
-
-    occupiedRows.add(preferredRow);
-    slotOccupancy.set(slotKey, occupiedRows);
+    nextRowBySlot.set(slotKey, rowIndex + 1);
     placements.set(itemId, {
       bandIndex,
       columnIndex,
-      rowIndex: preferredRow,
+      rowIndex,
     });
   });
 
